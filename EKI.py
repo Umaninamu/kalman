@@ -36,7 +36,7 @@ def EKI(u0, U, y, G, eta, Ntmax, IGamma):
         #Creo le matrici di covarianza
         co = np.cov(u[n].T, Gu.T) #Simmetrica
         CuG = co[:d, d:]
-        CuG = np.einsum('ij, ik -> jk', u[n]-np.mean(u[n], axis=0), Gu-np.mean(Gu, axis=0)) / N
+        #CuG = np.einsum('ij, ik -> jk', u[n]-np.mean(u[n], axis=0), Gu-np.mean(Gu, axis=0)) / N
         CGG = np.cov(Gu.T)
         #Aggiorno u
         #u[n+1] = u[n] + np.tile(CuG @ np.linalg.inv(CGG + IGamma), (N,1,1)) @ (np.tile(y, (N,1,1)) - np.tile(G, (N,1,1)) @ u[n].T).T
