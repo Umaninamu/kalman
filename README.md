@@ -3,6 +3,7 @@
 inizializzazione
 - git clone «indirizzo da clonare» (nel nostro caso https://github.com/Umaninamu/kalman)
 - pip install pdm (se non lo conosce)
+- export PATH=$PATH:/tmp/guest/.local/bin (Se 'pip install pdm' dice di aggiungere pdm al PATH)
 - pdm install (installa tutte cose)
 - pdm venv activate (per attivare l'ambiente, in altre parole python3 viene chiamato usando .venv)
 
