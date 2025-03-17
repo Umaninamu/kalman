@@ -18,6 +18,6 @@ Durante le modifiche
 
 Al termine delle modifiche
 - git add «path relativa da aggiungere» (mette tutte le modifiche da parte, ad esempio git add .)
-- git commit -m "messaggio non vuoto" (chiude tutte le modifiche in un pacchetto)
+- git commit -m "messaggio non vuoto" (chiude tutte le modifiche in un pacchetto) (--no-verify per eliminare il precommit)
 - git pull (si sincronizza con la repository online e confronta le versioni)
 - git push (invia il pacchetto che presumibilmente è già coerente)
