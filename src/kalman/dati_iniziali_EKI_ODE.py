@@ -2,16 +2,18 @@ import numpy as np
 import einops
 import ode_implicite as odei
 from scipy.integrate import solve_ivp
+import matplotlib.pyplot as plt
+import EKI as eki
 
 
 def datiEKI(f, y_prev, t_prev, dt, A, b, c):
     d = len(A)  # Numero di stadi
     K = len(y_prev)  # Dimensione del sistema
-    N = 50  # Numero di ensemble
+    N = 20  # Numero di ensemble
     Ntmax = 200  # Numero massimo di iterazioni
-    # gamma = 1e-2
-    # gamma = dt**3
-    gamma = 1e-12
+    #gamma = 1e-2
+    gamma = dt**3
+    #gamma = 1e-12 # No per case==10
 
     def G(Y):
         u = einops.rearrange(Y, "n (d k) -> n d k", k=K, d=d)
@@ -38,23 +40,22 @@ def datiEKI(f, y_prev, t_prev, dt, A, b, c):
 
 
 def datiRK():
-    case = 11  # Caso f da risolvere
-    y0 = np.array([1, 2])  # Dati iniziali al tempo 0 e Dimensione del sistema
-    t0, T = 0, 300  # Tempo
+    case = 10  # Caso f da risolvere
+    y0 = np.array([1,0,0])  # Dati iniziali al tempo 0 e Dimensione del sistema
+    t0, T = 0, 40  # Tempo
     lam = np.abs(odei.autovalori(case))
     # Vettore dei passi temporali degli autovalori. Se l'autovalore==0, fa 1 iterazione
     Dt = 1 / np.where(lam == 0, 1e-8, lam)
-    dt = np.max(Dt)  # Passo temporale, 1/autovalore
-    metodo = 5  # EulerImplicit, RK4, Cranknicolson, Dirk22, Dirk33, TrapezoidalRule, RadauIIA3, GaussLegendre4
+    dt = np.min(Dt)  # Passo temporale, 1/autovalore
+    metodo = 1  # EulerImplicit, RK4, Cranknicolson, Dirk22, Dirk33, TrapezoidalRule, RadauIIA3, GaussLegendre4
     A, b, c = odei.TableauRK(metodo)
-    # calcolaOrdine = True
-    calcolaOrdine = False  # Solo per case==9
+    calcolaOrdine = False
+    calcolaOrdine = True  # Solo per case==9
     f = lambda y, t: odei.ff(y, t, case)
     return f, y0, t0, T, dt, A, b, c, calcolaOrdine, case
 
 
-def controllo_iniziale(y, d, K, N, dt, A, b, c, f, t):
-    contr = 2
+def controllo_iniziale(y, d, K, N, dt, A, b, c, f, t, contr=2):
     if contr == 1:
         """
         1) Controlli iniziali uguali ma traslati
@@ -73,7 +74,7 @@ def controllo_iniziale(y, d, K, N, dt, A, b, c, f, t):
         Funziona bene per case == 11: più lento del 5
         Funziona male per case == 12: se T grande (50) non vede i massimi
         """
-        u0 = np.random.normal(loc=y, scale=dt, size=(d, N, K))
+        u0 = np.random.normal(loc=y, scale=2*dt, size=(d, N, K))
     elif contr == 3:
         """
         3) Controlli iniziali a media y_prev e deviazione standard > c_k-c_(k-1) * dt
@@ -110,7 +111,12 @@ def controllo_iniziale(y, d, K, N, dt, A, b, c, f, t):
         for i in range(len(tab[1])):
             k[i] = f(y_next + DT * np.dot(tab[0][i, :], k), t + tab[2][i] * DT)
         y_next += DT * np.dot(tab[1], k)
-        u0 = np.random.normal(loc=y_next, scale=1, size=(d, N, K))
+        u0 = np.random.normal(loc=y_next, scale=dt, size=(d, N, K))
+    elif contr == 6:
+        """
+        """
+        u0 = np.random.normal(loc=y_next, scale=dt, size=(d, N, K))
+
 
     return u0
 
@@ -127,7 +133,6 @@ def comincia():
         print(f"Componente {i}: {np.linalg.norm(y_Newton[-1][i] - y_EKI[-1][i])}")
     # GRAFICO
     odei.grafico(y0, y_Newton, y_EKI, t, case, calcolaOrdine, dt, t0, T, f, A, b, c)
-
 
 if __name__ == "__main__":
     comincia()

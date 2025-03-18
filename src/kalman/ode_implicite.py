@@ -8,7 +8,6 @@ import time
 import einops
 import dati_iniziali_EKI_ODE as dati
 
-
 def RungeKuttaEKI(f, y_prev, t_prev, dt, A, b, c):
     u0, U, y, G, ETA, Ntmax, IGamma, d, K, N = dati.datiEKI(
         f, y_prev, t_prev, dt, A, b, c
@@ -38,7 +37,7 @@ def RungeKuttaNewton(f, y_prev, t_prev, dt, A, b, c):
             y_guess += dy
             # print(f'{np.linalg.norm(dy)} -- {tol}')
             if np.linalg.norm(dy) < tol:
-                # print(f'Convergenza raggiunta in {nn+1} iterazioni')
+                #print("Newton-Converge in ", nn, "iterazioni")
                 break
         return y_guess
 
@@ -86,7 +85,7 @@ def ode(f, y0, t0, T, dt, A, b, c):
     t_EKI = 0
     for n in range(1, len(t)):
         # print(f"{n}/{len(t)}")
-        if len(t) < 1 or n % (len(t) // 1) == 0:
+        if len(t) < 100 or n % (len(t) // 100) == 0:
             print(f"{n / len(t) * 100:.2f}%")
         t1 = time.time()
         try:
@@ -95,7 +94,7 @@ def ode(f, y0, t0, T, dt, A, b, c):
             print("Newton ha dato ERRORE all'iterazione:", n, "/", len(t))
             raise ()
         t2 = time.time()
-        # RungeKuttaEKI(f, y_EKI[n-1], t[n-1], dt, A, b, c)
+        RungeKuttaEKI(f, y_EKI[n-1], t[n-1], dt, A, b, c)
         try:
             y_EKI[n] = RungeKuttaEKI(f, y_EKI[n - 1], t[n - 1], dt, A, b, c)
         except:
@@ -208,31 +207,32 @@ def ff(y, t, case):
     elif case == 8:  # y' = 3*x/y + y/x
         Y = np.array([3 * t / y[0] + y[0] / t])
     # STIFF
-    elif case == 9:  # Test y' = Ay
+    elif case == 9:  # Test y' = Ay, Separabile
         # Calcolo Jacobiano
-        J = np.array([[-1, 0.01], [0.01, -16]])
+        J = np.array([[-1, 0.01], 
+                      [0.01, -16]])
         if len(y.shape) == 1:  # y=y1,y2. Per Newton
             Y = J @ y
         else:  # y: N x d x K. Per EKI
             Y = np.einsum("ij,ghj->ghi", J, y)
-    elif case == 10:  # Robertson Chemical Reaction
+    elif case == 10:  # Robertson Chemical Reaction, Separabile
         # T=1e11, y0=1,0,0, Nt=1e3
         if len(y.shape) == 1:  # y=y1,y2,y3. Per Newton
             Y = np.array(
                 [
-                    -0.04 * y[0] + 1e4 * y[1] * y[2],
-                    0.04 * y[0] - 1e4 * y[1] * y[2] - 3e7 * y[1] ** 2,
-                    3e7 * y[1] ** 2,
+                    -ma * y[0] + mb * y[1] * y[2],
+                    ma * y[0] - mb * y[1] * y[2] - mc * y[1] ** 2,
+                    mc * y[1] ** 2,
                 ]
             )
         else:  # y: N x d x K. Per EKI
             Y = np.array(
                 [
-                    -0.04 * y[:, :, 0] + 1e4 * y[:, :, 1] * y[:, :, 2],
-                    0.04 * y[:, :, 0]
-                    - 1e4 * y[:, :, 1] * y[:, :, 2]
-                    - 3e7 * y[:, :, 1] ** 2,
-                    3e7 * y[:, :, 1] ** 2,
+                    -ma * y[:, :, 0] + mb * y[:, :, 1] * y[:, :, 2],
+                    ma * y[:, :, 0]
+                    - mb * y[:, :, 1] * y[:, :, 2]
+                    - mc * y[:, :, 1] ** 2,
+                    mc * y[:, :, 1] ** 2,
                 ]
             ).transpose(1, 2, 0)
     elif case == 11:  # Electrical Circuits / Van der Pol
@@ -265,9 +265,24 @@ def ff(y, t, case):
                     0.161 * (y[:, :, 0] - y[:, :, 2]),
                 ]
             ).transpose(1, 2, 0)
-    elif case == 13:
-        pass
-
+    elif case == 13: #Caso Affine y' = Ay + f(t), Separabile
+        # T=20, y0=9.9,0
+        if len(y.shape) == 1:
+            Y  = np.array([-41*y[0] + 59*y[1] + -2*t**3 * (t**2 - 50*t - 2) * np.exp(-t**2),
+                        40*y[0] - 60*y[1] + 2*t**3 * (t**2 - 50*t - 2) * np.exp(-t**2)])
+        else: # y: N x d x K. Per EKI
+            Y = np.array([-41*y[:, :, 0] + 59*y[:, :, 1] + -2*t**3 * (t**2 - 50*t - 2) * np.exp(-t**2),
+                        40*y[:, :, 0] - 60*y[:, :, 1] + 2*t**3 * (t**2 - 50*t - 2) * np.exp(-t**2)]
+                         ).transpose(1, 2, 0)
+    elif case == 14: #Preda-Predatore
+        # T=15, y0=1,0.1
+        if len(y.shape) == 1:
+            Y = np.array([ma*y[0] - mb*y[0]*y[1],
+                          mc*y[0]*y[1] - md*y[1]])
+        else:
+            Y = np.array([ma*y[:, :, 0] - mb*y[:, :, 0]*y[:, :, 1],
+                          mc*y[:, :, 0]*y[:, :, 1] - md*y[:, :, 1]]
+                         ).transpose(1, 2, 0)
     return Y
 
 
@@ -315,6 +330,25 @@ def grafico(y0, y_Newton, y_EKI, t, case, calcolaOrdine, dt, t0, T, f, A, b, c):
     plt.ylabel("Valori")
     plt.title("Soluzione del sistema di ODE")
 
+    for i in range(len(y0)):
+        plt.figure()
+        plt.plot(t, y_Newton[:, i], ".-", label=f"y{i+1} Newton")
+        plt.plot(t, y_EKI[:, i], "--", label=f"y{i+1} EKI")
+        plt.legend()
+        plt.xlabel("Tempo")
+        plt.ylabel("Valori")
+        plt.title(f"Soluzione del sistema di ODE per y{i+1}")
+    
+    #Grafico spazio delle fasi
+    if case in [9, 11, 13, 14]: #Casi in dimensione 2
+        plt.figure()
+        plt.plot(y_Newton[:,0], y_Newton[:,1], '.-', label="Newton")
+        plt.plot(y_EKI[:,0], y_EKI[:,1], '--', label="EKI")
+        plt.legend()
+        plt.xlabel("y1")
+        plt.ylabel("y2")
+        plt.title("Spazio delle fasi")
+
     # Verifica convergenza
     if calcolaOrdine and case == 9:
         Dt = [dt / 2**i for i in range(5)]
@@ -344,32 +378,26 @@ def grafico(y0, y_Newton, y_EKI, t, case, calcolaOrdine, dt, t0, T, f, A, b, c):
         plt.xlabel("Dt")
         plt.ylabel("Errore")
         plt.title("Ordine di convergenza")
-
-    for i in range(len(y0)):
-        plt.figure()
-        plt.plot(t, y_Newton[:, i], ".-", label=f"y{i+1} Newton")
-        plt.plot(t, y_EKI[:, i], "--", label=f"y{i+1} EKI")
-        plt.legend()
-        plt.xlabel("Tempo")
-        plt.ylabel("Valori")
-        plt.title(f"Soluzione del sistema di ODE per y{i+1}")
     plt.show()
 
 
 def autovalori(case):
+    global ma, mb, mc, md, mu
     if case == 9:
         J = np.array([[-1, 0.01], [0.01, -16]])
     elif case == 10:
-        Y = np.array([0, 0, 0.001])  # Punto di equilibrio. Y[2] > -4e-6 per stabilità
+        ma = 0.04
+        mb = 1e2
+        mc = 3e3
+        Y = np.array([0, 0, 2])  # Punto di equilibrio.
         J = np.array(
             [
-                [-0.04, 1e4 * Y[2], 1e4 * Y[1]],
-                [0.04, -1e4 * Y[2] - 6e7 * Y[1], -1e4 * Y[1]],
-                [0, 6e7 * Y[1], 0],
+                [-ma, mb * Y[2], mb * Y[1]],
+                [ma, -mb * Y[2] - 2*mc * Y[1], -mb * Y[1]],
+                [0, 2*mc * Y[1], 0],
             ]
         )
     elif case == 11:
-        global mu
         mu = 25
         Y = np.array([0, 0])  # Punto di equilibrio.
         J = np.array([[0, 1], [-2 * mu * Y[0] * Y[1] - 1, mu * (1 - Y[0] ** 2)]])
@@ -386,6 +414,15 @@ def autovalori(case):
                 [0.161, 0, -0.161],
             ]
         )
+    elif case == 13:
+        J = np.array([[-41, 59],
+                      [40, -60]])
+    elif case == 14:
+        ma, mb, mc, md = 100, 1, 1, 1
+        Y = np.array([0, 0]) # Punto di equilibrio.
+        #Y = np.array([md / mc, ma / mb]) # Punto di equilibrio.
+        J = np.array([[ma-mb*Y[1], -mb*Y[0]],
+                        [mc*Y[1], mc*Y[0] - md]])
     lam = np.linalg.eigvals(J)
     print(f"Autovalori: {lam}")
     return lam

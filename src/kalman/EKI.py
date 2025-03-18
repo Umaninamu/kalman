@@ -3,6 +3,7 @@ from numpy.linalg import norm as norm
 import matplotlib.pyplot as plt
 from scipy.linalg import lu_factor, lu_solve
 from scipy.linalg import solve_banded
+from scipy.linalg import cho_solve, cho_factor
 from scipy.sparse import diags
 from scipy.sparse.linalg import spsolve
 from scipy.sparse import block_diag
@@ -32,16 +33,22 @@ def EKI(u0, U, y, G, eta, Ntmax, IGamma):
         TETA[n] = teta
         # print('    misfit =', teta, '\n    norm(rumore) =', norm(eta) ** 2)
         # Creo le matrici di covarianza
-        co = np.cov(u[n].T, Gu.T)  # Simmetrica
-        CuG = co[:d, d:]
-        # CuG = np.einsum('ij, ik -> jk', u[n]-np.mean(u[n], axis=0), Gu-np.mean(Gu, axis=0)) / N
-        CGG = np.cov(Gu.T)
+        # co = np.cov(np.vstack((u[n].T, Gu.T)))
+        # co = np.cov(u[n].T, Gu.T)  # Simmetrica
+        # CuG = co[:d, d:]
+        # CGG = co[d:, d:]
+        u_centrato = u[n] - np.mean(u[n], axis=0)
+        Gu_centrato = Gu - np.mean(Gu, axis=0)
+        CuG = (u_centrato.T @ Gu_centrato) / (N)
+        CGG = (Gu_centrato.T @ Gu_centrato) / (N)
         # Aggiorno u
         # u[n+1] = u[n] + np.tile(CuG @ np.linalg.inv(CGG + IGamma), (N,1,1)) @ (np.tile(y, (N,1,1)) - np.tile(G, (N,1,1)) @ u[n].T).T
-        u[n + 1] = u[n] + (CuG @ np.linalg.inv(CGG + IGamma) @ (y - Gu).T).T
+        L, l = cho_factor(CGG + IGamma)
+        u[n + 1] = u[n] + (CuG @ cho_solve((L,l), np.eye(len(L))) @ (y - Gu).T).T
+        #u[n + 1] = u[n] + (CuG @ np.linalg.inv(CGG + IGamma) @ (y - Gu).T).T
         if teta < norm(eta) ** 2:
             print("EKI-Converge in ", n, "iterazioni")
-            return u[: n + 2], TETA[: n + 1], res[: n + 1]
+            return u[:n + 2], TETA[:n + 1], res[:n + 1]
     # print(f"EKI-Non converge in {Ntmax} iterazioni. Misfit = {teta}, norm(eta)2 = {norm(eta) ** 2}")
     print(
         f"EKI-Non converge in {Ntmax} iterazioni. Misfit - norm(eta)2 = {teta - norm(eta) ** 2 :.6f}. Misfit / norm(eta)2 = {teta / norm(eta) ** 2 :.6f}"
@@ -467,14 +474,16 @@ if __name__ == "__main__":
 
     # Controlli iniziali
     t = np.linspace(0, 1, d)
-    # browniano prof
-    # try: u0 = np.mean(U)*np.ones((N, d)) + np.random.randn(N, d) @ np.linalg.cholesky(10*gC0)
-    # except: u0 = np.mean(U)*np.ones((N, d)) + np.random.randn(N, d) @ np.linalg.cholesky(10*(gC0@gC0.T))
-    # casuale prof
-    u0 = np.array([U + 0.25 + np.random.randn() for _ in range(N)])
-    # casuale
-    # u0 = np.array([U + 10*np.random.normal(0, gamma, d) for _ in range(N)])
-    if Gg == 6:
+    if Gg in [0, 1, 2, 3, 4, 5]:
+        # browniano prof
+        # try: u0 = np.mean(U)*np.ones((N, d)) + np.random.randn(N, d) @ np.linalg.cholesky(10*gC0)
+        # except: u0 = np.mean(U)*np.ones((N, d)) + np.random.randn(N, d) @ np.linalg.cholesky(10*(gC0@gC0.T))
+        # casuale prof
+        u0 = np.array([U + 0.25 + np.random.randn() for _ in range(N)])
+        # casuale
+        # u0 = np.array([U + 10*np.random.normal(0, gamma, d) for _ in range(N)])
+    elif Gg == 6:
+        u0 = np.zeros((N, d))
         u0[:, 0] = np.random.randn(N)
         u0[:, 1] = np.random.uniform(90, 110, N)
 
