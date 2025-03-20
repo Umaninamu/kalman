@@ -40,13 +40,13 @@ def datiEKI(f, y_prev, t_prev, dt, A, b, c):
 
 
 def datiRK():
-    case = 14  # Caso f da risolvere
+    case = 9  # Caso f da risolvere
     y0 = np.array([1, 1])  # Dati iniziali al tempo 0 e Dimensione del sistema
     t0, T = 0, 10  # Tempo
     lam = np.abs(odei.autovalori(case))
     # Vettore dei passi temporali degli autovalori. Se l'autovalore==0, fa 1 iterazione
     Dt = 1 / np.where(lam == 0, 1e-8, lam)
-    dt = np.max(Dt) / 5  # Passo temporale, 1/autovalore
+    dt = np.min(Dt)  # Passo temporale, 1/autovalore
     # dt=0.5
     metodo = 5  # EulerImplicit, RK4, Cranknicolson, Dirk22, Dirk33, TrapezoidalRule, RadauIIA3, GaussLegendre4
     A, b, c = odei.TableauRK(metodo)

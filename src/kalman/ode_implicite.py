@@ -76,39 +76,46 @@ def RungeKuttaNewton(f, y_prev, t_prev, dt, A, b, c):
     return y_next
 
 
+def RungeKuttaNewton2(f, y_prev, t_prev, dt, A, b, c):
+    s = len(b)  # Numero di stadi
+    K = len(y_prev)  # Dimensione del sistema
+    y = np.zeros((s, K))
+    for i in range(s):
+        k = np.zeros((i, K))
+        for j in range(i):
+            k[j] = f(y[j], t_prev + c[j] * dt)
+        y[i] = y_prev + dt * A[i, :i] @ k[:i]
+
+
 def ode(f, y0, t0, T, dt, A, b, c):
     t = np.arange(t0, T + dt, dt)
     y_EKI = np.zeros((len(t), len(y0)))
     y_Newton = np.zeros((len(t), len(y0)))
-    y_EKI[0] = y_Newton[0] = y0
+    y_Newton2 = np.zeros((len(t), len(y0)))
+    y_EKI[0] = y_Newton[0] = y_Newton2[0] = y0
 
     t_Newton = 0
+    t_Newton2 = 0
     t_EKI = 0
     for n in range(1, len(t)):
         # print(f"{n}/{len(t)}")
         if len(t) < 100 or n % (len(t) // 100) == 0:
             print(f"{n / len(t) * 100:.2f}%")
         t1 = time.time()
-        try:
-            y_Newton[n] = RungeKuttaNewton(f, y_Newton[n - 1], t[n - 1], dt, A, b, c)
-        except:
-            print("Newton ha dato ERRORE all'iterazione:", n, "/", len(t))
-            raise ()
+        y_Newton[n] = RungeKuttaNewton(f, y_Newton[n - 1], t[n - 1], dt, A, b, c)
         t2 = time.time()
-        # RungeKuttaEKI(f, y_EKI[n-1], t[n-1], dt, A, b, c)
-        try:
-            y_EKI[n] = RungeKuttaEKI(f, y_EKI[n - 1], t[n - 1], dt, A, b, c)
-        except:
-            print("EKI ha dato ERRORE all'iterazione:", n, "/", len(t))
-            raise ()
+        # y_EKI[n] = RungeKuttaEKI(f, y_EKI[n - 1], t[n - 1], dt, A, b, c)
         t3 = time.time()
+        y_Newton2[n] = RungeKuttaNewton2(f, y_Newton2[n - 1], t[n - 1], dt, A, b, c)
+        t4 = time.time()
         t_Newton += t2 - t1
         t_EKI += t3 - t2
-    print(f"TEMPO TOTALE: \n\tNewton: {t_Newton} \n\tEKI: {t_EKI}")
+        t_Newton2 += t4 - t3
+    print(f"TEMPO TOTALE: \n\tNewton: {t_Newton} \n\tEKI: {t_Newton2}")
     # f = lambda t, y: ff(y, t, case)
     # Y = solve_ivp(f, (t0, T), y0, method='Radau', t_eval=t)
     # f = lambda y, t: ff(y, t, case)
-    return t, y_Newton, y_EKI
+    return t, y_Newton, y_Newton2
 
 
 def TableauRK(metodo):
