@@ -8,6 +8,7 @@ import time
 import einops
 import dati_iniziali_EKI_ODE as dati
 
+
 def RungeKuttaEKI(f, y_prev, t_prev, dt, A, b, c):
     u0, U, y, G, ETA, Ntmax, IGamma, d, K, N = dati.datiEKI(
         f, y_prev, t_prev, dt, A, b, c
@@ -37,7 +38,7 @@ def RungeKuttaNewton(f, y_prev, t_prev, dt, A, b, c):
             y_guess += dy
             # print(f'{np.linalg.norm(dy)} -- {tol}')
             if np.linalg.norm(dy) < tol:
-                #print("Newton-Converge in ", nn, "iterazioni")
+                # print("Newton-Converge in ", nn, "iterazioni")
                 break
         return y_guess
 
@@ -94,7 +95,7 @@ def ode(f, y0, t0, T, dt, A, b, c):
             print("Newton ha dato ERRORE all'iterazione:", n, "/", len(t))
             raise ()
         t2 = time.time()
-        RungeKuttaEKI(f, y_EKI[n-1], t[n-1], dt, A, b, c)
+        # RungeKuttaEKI(f, y_EKI[n-1], t[n-1], dt, A, b, c)
         try:
             y_EKI[n] = RungeKuttaEKI(f, y_EKI[n - 1], t[n - 1], dt, A, b, c)
         except:
@@ -209,8 +210,7 @@ def ff(y, t, case):
     # STIFF
     elif case == 9:  # Test y' = Ay, Separabile
         # Calcolo Jacobiano
-        J = np.array([[-1, 0.01], 
-                      [0.01, -16]])
+        J = np.array([[-1, 0.01], [0.01, -16]])
         if len(y.shape) == 1:  # y=y1,y2. Per Newton
             Y = J @ y
         else:  # y: N x d x K. Per EKI
@@ -265,24 +265,41 @@ def ff(y, t, case):
                     0.161 * (y[:, :, 0] - y[:, :, 2]),
                 ]
             ).transpose(1, 2, 0)
-    elif case == 13: #Caso Affine y' = Ay + f(t), Separabile
+    elif case == 13:  # Caso Affine y' = Ay + f(t), Separabile
         # T=20, y0=9.9,0
         if len(y.shape) == 1:
-            Y  = np.array([-41*y[0] + 59*y[1] + -2*t**3 * (t**2 - 50*t - 2) * np.exp(-t**2),
-                        40*y[0] - 60*y[1] + 2*t**3 * (t**2 - 50*t - 2) * np.exp(-t**2)])
-        else: # y: N x d x K. Per EKI
-            Y = np.array([-41*y[:, :, 0] + 59*y[:, :, 1] + -2*t**3 * (t**2 - 50*t - 2) * np.exp(-t**2),
-                        40*y[:, :, 0] - 60*y[:, :, 1] + 2*t**3 * (t**2 - 50*t - 2) * np.exp(-t**2)]
-                         ).transpose(1, 2, 0)
-    elif case == 14: #Preda-Predatore
+            Y = np.array(
+                [
+                    -41 * y[0]
+                    + 59 * y[1]
+                    + -2 * t**3 * (t**2 - 50 * t - 2) * np.exp(-(t**2)),
+                    40 * y[0]
+                    - 60 * y[1]
+                    + 2 * t**3 * (t**2 - 50 * t - 2) * np.exp(-(t**2)),
+                ]
+            )
+        else:  # y: N x d x K. Per EKI
+            Y = np.array(
+                [
+                    -41 * y[:, :, 0]
+                    + 59 * y[:, :, 1]
+                    + -2 * t**3 * (t**2 - 50 * t - 2) * np.exp(-(t**2)),
+                    40 * y[:, :, 0]
+                    - 60 * y[:, :, 1]
+                    + 2 * t**3 * (t**2 - 50 * t - 2) * np.exp(-(t**2)),
+                ]
+            ).transpose(1, 2, 0)
+    elif case == 14:  # Preda-Predatore
         # T=15, y0=1,0.1
         if len(y.shape) == 1:
-            Y = np.array([ma*y[0] - mb*y[0]*y[1],
-                          mc*y[0]*y[1] - md*y[1]])
+            Y = np.array([ma * y[0] - mb * y[0] * y[1], mc * y[0] * y[1] - md * y[1]])
         else:
-            Y = np.array([ma*y[:, :, 0] - mb*y[:, :, 0]*y[:, :, 1],
-                          mc*y[:, :, 0]*y[:, :, 1] - md*y[:, :, 1]]
-                         ).transpose(1, 2, 0)
+            Y = np.array(
+                [
+                    ma * y[:, :, 0] - mb * y[:, :, 0] * y[:, :, 1],
+                    mc * y[:, :, 0] * y[:, :, 1] - md * y[:, :, 1],
+                ]
+            ).transpose(1, 2, 0)
     return Y
 
 
@@ -338,12 +355,12 @@ def grafico(y0, y_Newton, y_EKI, t, case, calcolaOrdine, dt, t0, T, f, A, b, c):
         plt.xlabel("Tempo")
         plt.ylabel("Valori")
         plt.title(f"Soluzione del sistema di ODE per y{i+1}")
-    
-    #Grafico spazio delle fasi
-    if case in [9, 11, 13, 14]: #Casi in dimensione 2
+
+    # Grafico spazio delle fasi
+    if case in [9, 11, 13, 14]:  # Casi in dimensione 2
         plt.figure()
-        plt.plot(y_Newton[:,0], y_Newton[:,1], '.-', label="Newton")
-        plt.plot(y_EKI[:,0], y_EKI[:,1], '--', label="EKI")
+        plt.plot(y_Newton[:, 0], y_Newton[:, 1], ".-", label="Newton")
+        plt.plot(y_EKI[:, 0], y_EKI[:, 1], "--", label="EKI")
         plt.legend()
         plt.xlabel("y1")
         plt.ylabel("y2")
@@ -393,8 +410,8 @@ def autovalori(case):
         J = np.array(
             [
                 [-ma, mb * Y[2], mb * Y[1]],
-                [ma, -mb * Y[2] - 2*mc * Y[1], -mb * Y[1]],
-                [0, 2*mc * Y[1], 0],
+                [ma, -mb * Y[2] - 2 * mc * Y[1], -mb * Y[1]],
+                [0, 2 * mc * Y[1], 0],
             ]
         )
     elif case == 11:
@@ -415,14 +432,12 @@ def autovalori(case):
             ]
         )
     elif case == 13:
-        J = np.array([[-41, 59],
-                      [40, -60]])
+        J = np.array([[-41, 59], [40, -60]])
     elif case == 14:
-        ma, mb, mc, md = 1, 1, 1, 100
-        Y = np.array([0, 0]) # Punto di equilibrio.
-        #Y = np.array([md / mc, ma / mb]) # Punto di equilibrio.
-        J = np.array([[ma-mb*Y[1], -mb*Y[0]],
-                        [mc*Y[1], mc*Y[0] - md]])
+        ma, mb, mc, md = 100, 1, 100, 1
+        Y = np.array([0, 0])  # Punto di equilibrio.
+        # Y = np.array([md / mc, ma / mb]) # Punto di equilibrio.
+        J = np.array([[ma - mb * Y[1], -mb * Y[0]], [mc * Y[1], mc * Y[0] - md]])
     lam = np.linalg.eigvals(J)
     print(f"Autovalori: {lam}")
     return lam
