@@ -47,23 +47,30 @@ def EKI(u0, U, y, G, eta, Ntmax, IGamma, d_stadi=0, K_dim=0):
         # else: #Per ODE implicite. K_dim, d_stadi != 0. 
         #     # d_stadi = Numero di stadi del metodo RK
         #     # K_dim = Dimensione del sistema
-        #     # u_centrato_d_K = ep.rearrange(u_centrato, "n (d k) -> n d k", d=d_stadi, k=K_dim)
-        #     # Gu_centrato_d_K = ep.rearrange(Gu_centrato, "n (d k) -> n d k", d=d_stadi, k=K_dim)
-        #     # CuG, CGG = np.zeros((d_stadi, d_stadi, K_dim)), np.zeros((d_stadi, d_stadi, K_dim))
-        #     # # for i in range(K_dim):
-        #     # #     CuG[:,:,i] = (u_centrato_d_K[:,:,i].T @ Gu_centrato_d_K[:,:,i]) / (N)
-        #     # #     CGG[:,:,i] = (Gu_centrato_d_K[:,:,i].T @ Gu_centrato_d_K[:,:,i]) / (N)
-        #     # CuG = np.einsum("ndk,nek->dek", u_centrato_d_K, Gu_centrato_d_K) / (N)
-        #     # CGG = np.einsum("ndk,nek->dek", Gu_centrato_d_K, Gu_centrato_d_K) / (N)
-        #     # CuG = block_diag([CuG[:, :, i] for i in range(K_dim)]).toarray()
-        #     # CGG = block_diag([CGG[:, :, i] for i in range(K_dim)]).toarray()
-            
-        #     CuG, CGG = np.zeros((d, d)), np.zeros((d, d))
-        #     Cug = (u_centrato.T @ Gu_centrato) / (N)
-        #     Cgg = (Gu_centrato.T @ Gu_centrato) / (N)
+        #     u_centrato_d_K = ep.rearrange(u_centrato, "n (d k) -> n d k", d=d_stadi, k=K_dim)
+        #     Gu_centrato_d_K = ep.rearrange(Gu_centrato, "n (d k) -> n d k", d=d_stadi, k=K_dim)
+        #     CuG, CGG = np.zeros((d_stadi, d_stadi, K_dim)), np.zeros((d_stadi, d_stadi, K_dim))
+        #     # for i in range(K_dim):
+        #     #     CuG[:,:,i] = (u_centrato_d_K[:,:,i].T @ Gu_centrato_d_K[:,:,i]) / (N)
+        #     #     CGG[:,:,i] = (Gu_centrato_d_K[:,:,i].T @ Gu_centrato_d_K[:,:,i]) / (N)
+        #     CuG = np.einsum("ndk,nek->dek", u_centrato_d_K, Gu_centrato_d_K) / (N)
+        #     CGG = np.einsum("ndk,nek->dek", Gu_centrato_d_K, Gu_centrato_d_K) / (N)
+        #     #CuG = block_diag([CuG[:, :, i] for i in range(K_dim)]).toarray()
+        #     #CGG = block_diag([CGG[:, :, i] for i in range(K_dim)]).toarray()
         #     for i in range(K_dim):
-        #         CuG[i*d_stadi:(i+1)*d_stadi, i*d_stadi:(i+1)*d_stadi] = Cug[i*d_stadi:(i+1)*d_stadi, i*d_stadi:(i+1)*d_stadi]
-        #         CGG[i*d_stadi:(i+1)*d_stadi, i*d_stadi:(i+1)*d_stadi] = Cgg[i*d_stadi:(i+1)*d_stadi, i*d_stadi:(i+1)*d_stadi]
+        #         u_next = np.zeros((N, d))
+        #         u_n = ep.rearrange(u[n], "n (d k) -> n (k d)", d=d_stadi, k=K_dim)[:, i*d_stadi: (i+1)*d_stadi]
+        #         L, l = cho_factor(CGG[:, :, i] + IGamma[:d_stadi, :d_stadi])
+        #         K_gain = CuG[:, :, i] @ cho_solve((L,l), np.eye(len(L)))
+        #         u_next[:, i*d_stadi: (i+1)*d_stadi] = u_n + (K_gain @ ((y - Gu)[:, i*d_stadi: (i+1)*d_stadi]).T).T
+        #     u[n + 1] = ep.rearrange(u_next, "n (k d) -> n (d k)", d=d_stadi, k=K_dim)
+            
+            # CuG, CGG = np.zeros((d, d)), np.zeros((d, d))
+            # Cug = (u_centrato.T @ Gu_centrato) / (N)
+            # Cgg = (Gu_centrato.T @ Gu_centrato) / (N)
+            # for i in range(K_dim):
+            #     CuG[i*d_stadi:(i+1)*d_stadi, i*d_stadi:(i+1)*d_stadi] = Cug[i*d_stadi:(i+1)*d_stadi, i*d_stadi:(i+1)*d_stadi]
+            #     CGG[i*d_stadi:(i+1)*d_stadi, i*d_stadi:(i+1)*d_stadi] = Cgg[i*d_stadi:(i+1)*d_stadi, i*d_stadi:(i+1)*d_stadi]
 
         # Aggiorno u
         # u[n+1] = u[n] + np.tile(CuG @ np.linalg.inv(CGG + IGamma), (N,1,1)) @ (np.tile(y, (N,1,1)) - np.tile(G, (N,1,1)) @ u[n].T).T

@@ -32,7 +32,7 @@ def datiEKI(f, y_prev, t_prev, dt, A, b, c):
     u0 = controllo_iniziale(y_prev, d, K, N, dt, A, b, c, f, t_prev)
     u0 = einops.rearrange(u0, "d n k -> n (d k)")
     eta = np.random.normal(0, gamma, K)  # Rumore se IGamma è diagonale
-    ETA = einops.repeat(eta, "k -> (k rep)", rep=d)
+    ETA = einops.repeat(eta, "k -> (rep k)", rep=d)
     IGamma = gamma**2 * np.eye(d * K)  # Matrice di covarianza del rumore
     y = ETA  # Dati osservati y=G(Y)+eta
     U = np.zeros(d)  # INUTILE
@@ -47,7 +47,7 @@ def datiRK():
     # Vettore dei passi temporali degli autovalori. Se l'autovalore==0, fa 1 iterazione
     Dt = 1 / np.where(lam == 0, 1e-8, lam)
     dt = np.min(Dt)  # Passo temporale, 1/autovalore
-    dt=0.5
+    #dt=0.5
     metodo = 5  # EulerImplicit, RK4, Cranknicolson, Dirk22, Dirk33, TrapezoidalRule, RadauIIA3, GaussLegendre4
     A, b, c = odei.TableauRK(metodo)
     calcolaOrdine = False
