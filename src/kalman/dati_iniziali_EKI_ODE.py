@@ -13,7 +13,7 @@ def datiEKI(f, y_prev, t_prev, dt, A, b, c):
     Ntmax = 200  # Numero massimo di iterazioni
     #gamma = 1e-2
     gamma = dt**3
-    #gamma = 1e-12 # No per case==10
+    #gamma = 1e-12 * dt**3 # No per case==10
 
     def G(Y):
         u = einops.rearrange(Y, "n (d k) -> n d k", k=K, d=d)
@@ -32,7 +32,7 @@ def datiEKI(f, y_prev, t_prev, dt, A, b, c):
     u0 = controllo_iniziale(y_prev, d, K, N, dt, A, b, c, f, t_prev)
     u0 = einops.rearrange(u0, "d n k -> n (d k)")
     eta = np.random.normal(0, gamma, K)  # Rumore se IGamma è diagonale
-    ETA = einops.repeat(eta, "k -> (rep k)", rep=d)
+    ETA = einops.repeat(eta, "k -> (k rep)", rep=d)
     IGamma = gamma**2 * np.eye(d * K)  # Matrice di covarianza del rumore
     y = ETA  # Dati osservati y=G(Y)+eta
     U = np.zeros(d)  # INUTILE
@@ -40,17 +40,18 @@ def datiEKI(f, y_prev, t_prev, dt, A, b, c):
 
 
 def datiRK():
-    case = 10  # Caso f da risolvere
-    y0 = np.array([1,0,0])  # Dati iniziali al tempo 0 e Dimensione del sistema
-    t0, T = 0, 40  # Tempo
+    case = 9  # Caso f da risolvere
+    y0 = np.array([1,1])  # Dati iniziali al tempo 0 e Dimensione del sistema
+    t0, T = 0, 20 #Tempo
     lam = np.abs(odei.autovalori(case))
     # Vettore dei passi temporali degli autovalori. Se l'autovalore==0, fa 1 iterazione
     Dt = 1 / np.where(lam == 0, 1e-8, lam)
     dt = np.min(Dt)  # Passo temporale, 1/autovalore
-    metodo = 1  # EulerImplicit, RK4, Cranknicolson, Dirk22, Dirk33, TrapezoidalRule, RadauIIA3, GaussLegendre4
+    dt=0.5
+    metodo = 5  # EulerImplicit, RK4, Cranknicolson, Dirk22, Dirk33, TrapezoidalRule, RadauIIA3, GaussLegendre4
     A, b, c = odei.TableauRK(metodo)
     calcolaOrdine = False
-    calcolaOrdine = True  # Solo per case==9
+    #calcolaOrdine = True  # Solo per case==9
     f = lambda y, t: odei.ff(y, t, case)
     return f, y0, t0, T, dt, A, b, c, calcolaOrdine, case
 

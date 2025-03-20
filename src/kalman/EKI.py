@@ -11,7 +11,7 @@ import einops as ep
 from scipy.stats import gaussian_kde
 
 
-def EKI(u0, U, y, G, eta, Ntmax, IGamma):
+def EKI(u0, U, y, G, eta, Ntmax, IGamma, d_stadi=0, K_dim=0):
     # g = lambda u: np.array(list(map(g, u))) # Applico g a ogni controllo
     N, d = np.shape(u0)
     u = np.zeros((Ntmax + 1, N, d))
@@ -41,10 +41,35 @@ def EKI(u0, U, y, G, eta, Ntmax, IGamma):
         Gu_centrato = Gu - np.mean(Gu, axis=0)
         CuG = (u_centrato.T @ Gu_centrato) / (N)
         CGG = (Gu_centrato.T @ Gu_centrato) / (N)
+        # if __name__ == "__main__": #Per EKI classico
+        #     CuG = (u_centrato.T @ Gu_centrato) / (N)
+        #     CGG = (Gu_centrato.T @ Gu_centrato) / (N)
+        # else: #Per ODE implicite. K_dim, d_stadi != 0. 
+        #     # d_stadi = Numero di stadi del metodo RK
+        #     # K_dim = Dimensione del sistema
+        #     # u_centrato_d_K = ep.rearrange(u_centrato, "n (d k) -> n d k", d=d_stadi, k=K_dim)
+        #     # Gu_centrato_d_K = ep.rearrange(Gu_centrato, "n (d k) -> n d k", d=d_stadi, k=K_dim)
+        #     # CuG, CGG = np.zeros((d_stadi, d_stadi, K_dim)), np.zeros((d_stadi, d_stadi, K_dim))
+        #     # # for i in range(K_dim):
+        #     # #     CuG[:,:,i] = (u_centrato_d_K[:,:,i].T @ Gu_centrato_d_K[:,:,i]) / (N)
+        #     # #     CGG[:,:,i] = (Gu_centrato_d_K[:,:,i].T @ Gu_centrato_d_K[:,:,i]) / (N)
+        #     # CuG = np.einsum("ndk,nek->dek", u_centrato_d_K, Gu_centrato_d_K) / (N)
+        #     # CGG = np.einsum("ndk,nek->dek", Gu_centrato_d_K, Gu_centrato_d_K) / (N)
+        #     # CuG = block_diag([CuG[:, :, i] for i in range(K_dim)]).toarray()
+        #     # CGG = block_diag([CGG[:, :, i] for i in range(K_dim)]).toarray()
+            
+        #     CuG, CGG = np.zeros((d, d)), np.zeros((d, d))
+        #     Cug = (u_centrato.T @ Gu_centrato) / (N)
+        #     Cgg = (Gu_centrato.T @ Gu_centrato) / (N)
+        #     for i in range(K_dim):
+        #         CuG[i*d_stadi:(i+1)*d_stadi, i*d_stadi:(i+1)*d_stadi] = Cug[i*d_stadi:(i+1)*d_stadi, i*d_stadi:(i+1)*d_stadi]
+        #         CGG[i*d_stadi:(i+1)*d_stadi, i*d_stadi:(i+1)*d_stadi] = Cgg[i*d_stadi:(i+1)*d_stadi, i*d_stadi:(i+1)*d_stadi]
+
         # Aggiorno u
         # u[n+1] = u[n] + np.tile(CuG @ np.linalg.inv(CGG + IGamma), (N,1,1)) @ (np.tile(y, (N,1,1)) - np.tile(G, (N,1,1)) @ u[n].T).T
         L, l = cho_factor(CGG + IGamma)
-        u[n + 1] = u[n] + (CuG @ cho_solve((L,l), np.eye(len(L))) @ (y - Gu).T).T
+        K_gain = CuG @ cho_solve((L,l), np.eye(len(L)))
+        u[n + 1] = u[n] + (K_gain @ (y - Gu).T).T
         #u[n + 1] = u[n] + (CuG @ np.linalg.inv(CGG + IGamma) @ (y - Gu).T).T
         if teta < norm(eta) ** 2:
             print("EKI-Converge in ", n, "iterazioni")

@@ -12,7 +12,7 @@ def RungeKuttaEKI(f, y_prev, t_prev, dt, A, b, c):
     u0, U, y, G, ETA, Ntmax, IGamma, d, K, N = dati.datiEKI(
         f, y_prev, t_prev, dt, A, b, c
     )
-    u = eki.EKI(u0, U, y, G, ETA, Ntmax, IGamma)[0][
+    u = eki.EKI(u0, U, y, G, ETA, Ntmax, IGamma, d, K)[0][
         -1
     ]  # u==u_tempo_finale, return [Y, teta, res]
     um = np.mean(u, axis=0)
@@ -418,7 +418,7 @@ def autovalori(case):
         J = np.array([[-41, 59],
                       [40, -60]])
     elif case == 14:
-        ma, mb, mc, md = 100, 1, 1, 1
+        ma, mb, mc, md = 1, 1, 1, 100
         Y = np.array([0, 0]) # Punto di equilibrio.
         #Y = np.array([md / mc, ma / mb]) # Punto di equilibrio.
         J = np.array([[ma-mb*Y[1], -mb*Y[0]],
