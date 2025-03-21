@@ -11,8 +11,8 @@ def datiEKI(f, y_prev, t_prev, dt, A, b, c):
     K = len(y_prev)  # Dimensione del sistema
     N = 20  # Numero di ensemble
     Ntmax = 200  # Numero massimo di iterazioni
-    # gamma = 1e-2
-    gamma = dt**3
+    gamma = 1e-2
+    # gamma = dt**3
     # gamma = 1e-12 * dt**3 # No per case==10
 
     def G(Y):
@@ -40,20 +40,20 @@ def datiEKI(f, y_prev, t_prev, dt, A, b, c):
 
 
 def datiRK():
-    case = 9  # Caso f da risolvere
+    case = 13  # Caso f da risolvere
     y0 = np.array([1, 1])  # Dati iniziali al tempo 0 e Dimensione del sistema
-    t0, T = 0, 10  # Tempo
-    lam = np.abs(odei.autovalori(case))
+    t0, T = 0, 100  # Tempo
+    lam, Jf = odei.autovalori(case)
     # Vettore dei passi temporali degli autovalori. Se l'autovalore==0, fa 1 iterazione
-    Dt = 1 / np.where(lam == 0, 1e-8, lam)
-    dt = np.min(Dt)  # Passo temporale, 1/autovalore
-    # dt=0.5
+    Dt = 1 / np.where(lam == 0, 1e-8, np.abs(lam))
+    dt = np.max(Dt)  # Passo temporale, 1/autovalore
+    # dt=100
     metodo = 5  # EulerImplicit, RK4, Cranknicolson, Dirk22, Dirk33, TrapezoidalRule, RadauIIA3, GaussLegendre4
     A, b, c = odei.TableauRK(metodo)
     calcolaOrdine = False
     # calcolaOrdine = True  # Solo per case==9
     f = lambda y, t: odei.ff(y, t, case)
-    return f, y0, t0, T, dt, A, b, c, calcolaOrdine, case
+    return f, y0, t0, T, dt, A, b, c, calcolaOrdine, case, Jf
 
 
 def controllo_iniziale(y, d, K, N, dt, A, b, c, f, t, contr=2):
@@ -121,17 +121,17 @@ def controllo_iniziale(y, d, K, N, dt, A, b, c, f, t, contr=2):
 
 
 def comincia():
-    f, y0, t0, T, dt, A, b, c, calcolaOrdine, case = datiRK()
-    t, y_Newton, y_EKI = odei.ode(f, y0, t0, T, dt, A, b, c)
+    f, y0, t0, T, dt, A, b, c, calcolaOrdine, case, Jf = datiRK()
+    t, y_Newton, y_EKI = odei.ode(f, y0, t0, T, dt, A, b, c, Jf)
     # STAMPA
     print("")
-    odei.autovalori(case)  # stampa autovalori
+    odei.autovalori(case)[0]  # stampa autovalori
     print(f"dt = {dt}, autovalore usato = {1/dt}")
     print(f"norm(y_Newton - y_EKI) = {np.linalg.norm(y_Newton[-1] - y_EKI[-1])}")
     for i in range(len(y_Newton[-1])):
         print(f"Componente {i}: {np.linalg.norm(y_Newton[-1][i] - y_EKI[-1][i])}")
     # GRAFICO
-    odei.grafico(y0, y_Newton, y_EKI, t, case, calcolaOrdine, dt, t0, T, f, A, b, c)
+    odei.grafico(y0, y_Newton, y_EKI, t, case, calcolaOrdine, dt, t0, T, f, A, b, c, Jf)
 
 
 if __name__ == "__main__":

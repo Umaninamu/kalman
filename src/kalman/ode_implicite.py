@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import EKI as eki
 from scipy.integrate import solve_ivp
 from scipy.optimize import fsolve
+from scipy.sparse import block_diag
 import sympy as sp
 import time
 import einops
@@ -23,16 +24,16 @@ def RungeKuttaEKI(f, y_prev, t_prev, dt, A, b, c):
     return y_next
 
 
-def RungeKuttaNewton(f, y_prev, t_prev, dt, A, b, c):
+def RungeKuttaNewton(f, y_prev, t_prev, dt, A, b, c, Jf):
     def newton(F, y_guess, tol=1e-8, max_iter=100):
-        """
-        Metodo di Newton per risolvere F(y) = 0
-        F: funzione da risolvere (da RK), dim = n
-        y_guess: guess iniziale, dim = n
-        """
         for nn in range(max_iter):
-            J = jacobiano(F, y_guess)
+            # J = jacobiano(F, y_guess)
             # J = jacobiano_sym(F, y_guess)
+            Y = y_guess.reshape((len(A), len(y_prev)))
+            J = block_diag(
+                [np.eye(len(y_prev)) - dt * A[i, i] * Jf(Y[i]) for i in range(len(b))]
+            ).toarray()  # Approximation of Jacobian
+
             dy = np.linalg.solve(J, -F(y_guess))
 
             y_guess += dy
@@ -76,18 +77,35 @@ def RungeKuttaNewton(f, y_prev, t_prev, dt, A, b, c):
     return y_next
 
 
-def RungeKuttaNewton2(f, y_prev, t_prev, dt, A, b, c):
-    s = len(b)  # Numero di stadi
-    K = len(y_prev)  # Dimensione del sistema
-    y = np.zeros((s, K))
+def RungeKuttaNewton2(f, y_prev, t_prev, dt, A, b, c, Jf):
+    s = len(c)  # Numero di stadi
+    d = len(y_prev)  # Dimensione del sistema
+    Y = np.zeros((s, d))  # Valori intermedi
+
+    def F(Y, i):
+        return (
+            Y[i]
+            - y_prev
+            - dt * sum(A[i, k] * f(Y[k], t_prev + c[k] * dt) for k in range(i + 1))
+        )
+
     for i in range(s):
-        k = np.zeros((i, K))
-        for j in range(i):
-            k[j] = f(y[j], t_prev + c[j] * dt)
-        y[i] = y_prev + dt * A[i, :i] @ k[:i]
+
+        def newton(F, Y, tol=1e-10, max_iter=100):
+            for iter in range(max_iter):
+                J = np.eye(len(Y[i])) - dt * A[i, i] * Jf(Y[i])  # JAcobiano
+                dy = np.linalg.solve(J, -F(Y, i))
+                Y[i] += dy
+                if np.linalg.norm(dy) < tol:
+                    break
+            return Y[i]
+
+        Y[i] = newton(F, Y)
+    y_next = y_prev + dt * sum(b[i] * f(Y[i], t_prev + c[i] * dt) for i in range(s))
+    return y_next
 
 
-def ode(f, y0, t0, T, dt, A, b, c):
+def ode(f, y0, t0, T, dt, A, b, c, Jf):
     t = np.arange(t0, T + dt, dt)
     y_EKI = np.zeros((len(t), len(y0)))
     y_Newton = np.zeros((len(t), len(y0)))
@@ -102,20 +120,20 @@ def ode(f, y0, t0, T, dt, A, b, c):
         if len(t) < 100 or n % (len(t) // 100) == 0:
             print(f"{n / len(t) * 100:.2f}%")
         t1 = time.time()
-        y_Newton[n] = RungeKuttaNewton(f, y_Newton[n - 1], t[n - 1], dt, A, b, c)
+        # y_Newton[n] = RungeKuttaNewton(f, y_Newton[n - 1], t[n - 1], dt, A, b, c, Jf)
         t2 = time.time()
-        # y_EKI[n] = RungeKuttaEKI(f, y_EKI[n - 1], t[n - 1], dt, A, b, c)
+        y_EKI[n] = RungeKuttaEKI(f, y_EKI[n - 1], t[n - 1], dt, A, b, c)
         t3 = time.time()
-        y_Newton2[n] = RungeKuttaNewton2(f, y_Newton2[n - 1], t[n - 1], dt, A, b, c)
+        y_Newton2[n] = RungeKuttaNewton2(f, y_Newton2[n - 1], t[n - 1], dt, A, b, c, Jf)
         t4 = time.time()
         t_Newton += t2 - t1
         t_EKI += t3 - t2
         t_Newton2 += t4 - t3
-    print(f"TEMPO TOTALE: \n\tNewton: {t_Newton} \n\tEKI: {t_Newton2}")
+    print(f"TEMPO TOTALE: \n\tNewton: {t_Newton2} \n\tEKI: {t_EKI}")
     # f = lambda t, y: ff(y, t, case)
     # Y = solve_ivp(f, (t0, T), y0, method='Radau', t_eval=t)
     # f = lambda y, t: ff(y, t, case)
-    return t, y_Newton, y_Newton2
+    return t, y_Newton2, y_EKI
 
 
 def TableauRK(metodo):
@@ -311,7 +329,7 @@ def ff(y, t, case):
 
 
 # Grafico
-def grafico(y0, y_Newton, y_EKI, t, case, calcolaOrdine, dt, t0, T, f, A, b, c):
+def grafico(y0, y_Newton, y_EKI, t, case, calcolaOrdine, dt, t0, T, f, A, b, c, Jf):
     plt.figure()
     for i in range(len(y0)):
         plt.plot(t, y_Newton[:, i], ".-", label=f"y{i+1} Newton")
@@ -384,7 +402,7 @@ def grafico(y0, y_Newton, y_EKI, t, case, calcolaOrdine, dt, t0, T, f, A, b, c):
             Nt = int((T - t0) / dt)
             NT[i] = Nt
             T = t0 + Nt * dt
-            t, y_Newton, y_EKI = ode(f, y0, t0, T, dt, A, b, c)
+            t, y_Newton, y_EKI = ode(f, y0, t0, T, dt, A, b, c, Jf)
             errore_Newton[i] = np.abs(y_Newton[-1] - SOL(t[-1]))
             errore_EKI[i] = np.abs(y_EKI[-1] - SOL(t[-1]))
         # Calcolo ordine p
@@ -408,13 +426,14 @@ def grafico(y0, y_Newton, y_EKI, t, case, calcolaOrdine, dt, t0, T, f, A, b, c):
 def autovalori(case):
     global ma, mb, mc, md, mu
     if case == 9:
-        J = np.array([[-1, 0.01], [0.01, -16]])
+        Y = np.array([1, 1])  # NON SERVE
+        J = lambda Y: np.array([[-1, 0.01], [0.01, -16]])
     elif case == 10:
         ma = 0.04
         mb = 1e2
         mc = 3e3
         Y = np.array([0, 0, 2])  # Punto di equilibrio.
-        J = np.array(
+        J = lambda Y: np.array(
             [
                 [-ma, mb * Y[2], mb * Y[1]],
                 [ma, -mb * Y[2] - 2 * mc * Y[1], -mb * Y[1]],
@@ -424,14 +443,16 @@ def autovalori(case):
     elif case == 11:
         mu = 25
         Y = np.array([0, 0])  # Punto di equilibrio.
-        J = np.array([[0, 1], [-2 * mu * Y[0] * Y[1] - 1, mu * (1 - Y[0] ** 2)]])
+        J = lambda Y: np.array(
+            [[0, 1], [-2 * mu * Y[0] * Y[1] - 1, mu * (1 - Y[0] ** 2)]]
+        )
     elif case == 12:
         q = (8.375e-6 + np.sqrt((8.375e-6) ** 2 + 8e-6)) / -2e-6
         (8.375e-6 - np.sqrt((8.375e-6) ** 2 + 8e-6)) / -2e-6
         Y = np.array([q, q / (1 + q), q])  # Punto di equilibrio.
         # Y = np.array([p, p / (1 + p), p]) #Punto di equilibrio.
         # Y = np.array([0, 0, 0]) #Punto di equilibrio.
-        J = np.array(
+        J = lambda Y: np.array(
             [
                 [77.27 * (1 - 2 * 8.375e-6 * Y[0] - Y[1]), 77.27 * (1 - Y[0]), 0],
                 [-1 / 77.27 * Y[1], -1 / 77.27 * (1 + Y[0]), 1 / 77.27],
@@ -439,15 +460,18 @@ def autovalori(case):
             ]
         )
     elif case == 13:
-        J = np.array([[-41, 59], [40, -60]])
+        Y = np.array([0, 0])  # NON SERVE
+        J = lambda Y: np.array([[-41, 59], [40, -60]])
     elif case == 14:
         ma, mb, mc, md = 100, 1, 100, 1
         Y = np.array([0, 0])  # Punto di equilibrio.
         # Y = np.array([md / mc, ma / mb]) # Punto di equilibrio.
-        J = np.array([[ma - mb * Y[1], -mb * Y[0]], [mc * Y[1], mc * Y[0] - md]])
-    lam = np.linalg.eigvals(J)
+        J = lambda Y: np.array(
+            [[ma - mb * Y[1], -mb * Y[0]], [mc * Y[1], mc * Y[0] - md]]
+        )
+    lam = np.linalg.eigvals(J(Y))
     print(f"Autovalori: {lam}")
-    return lam
+    return lam, J
 
 
 if __name__ == "__main__":
