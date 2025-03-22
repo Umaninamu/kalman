@@ -1,14 +1,5 @@
+import libreria_tesi as lib
 import numpy as np
-from numpy.linalg import norm as norm
-import matplotlib.pyplot as plt
-from scipy.linalg import lu_factor, lu_solve
-from scipy.linalg import solve_banded
-from scipy.linalg import cho_solve, cho_factor
-from scipy.sparse import diags
-from scipy.sparse.linalg import spsolve
-from scipy.sparse import block_diag
-import einops as ep
-from scipy.stats import gaussian_kde
 
 
 def EKI(u0, U, y, G, eta, Ntmax, IGamma, d_stadi=0, K_dim=0):
@@ -24,66 +15,32 @@ def EKI(u0, U, y, G, eta, Ntmax, IGamma, d_stadi=0, K_dim=0):
         Gu = G(u[n])
         if __name__ == "__main__":
             r = u[n] - U  # Residuo
-            rr = np.mean(norm(r, axis=1) ** 2)
+            rr = np.mean(lib.norm(r, axis=1) ** 2)
             print("    residuo =", rr)
             res[n] = rr
         # teta_vett = (G(r) - eta)
         teta_vett = Gu - y
-        teta = np.mean(norm(teta_vett, axis=1) ** 2)
+        teta = np.mean(lib.norm(teta_vett, axis=1) ** 2)
         TETA[n] = teta
         # print('    misfit =', teta, '\n    norm(rumore) =', norm(eta) ** 2)
         # Creo le matrici di covarianza
-        # co = np.cov(np.vstack((u[n].T, Gu.T)))
-        # co = np.cov(u[n].T, Gu.T)  # Simmetrica
-        # CuG = co[:d, d:]
-        # CGG = co[d:, d:]
         u_centrato = u[n] - np.mean(u[n], axis=0)
         Gu_centrato = Gu - np.mean(Gu, axis=0)
         CuG = (u_centrato.T @ Gu_centrato) / (N)
         CGG = (Gu_centrato.T @ Gu_centrato) / (N)
-        # if __name__ == "__main__": #Per EKI classico
-        #     CuG = (u_centrato.T @ Gu_centrato) / (N)
-        #     CGG = (Gu_centrato.T @ Gu_centrato) / (N)
-        # else: #Per ODE implicite. K_dim, d_stadi != 0.
-        #     # d_stadi = Numero di stadi del metodo RK
-        #     # K_dim = Dimensione del sistema
-        #     u_centrato_d_K = ep.rearrange(u_centrato, "n (d k) -> n d k", d=d_stadi, k=K_dim)
-        #     Gu_centrato_d_K = ep.rearrange(Gu_centrato, "n (d k) -> n d k", d=d_stadi, k=K_dim)
-        #     CuG, CGG = np.zeros((d_stadi, d_stadi, K_dim)), np.zeros((d_stadi, d_stadi, K_dim))
-        #     # for i in range(K_dim):
-        #     #     CuG[:,:,i] = (u_centrato_d_K[:,:,i].T @ Gu_centrato_d_K[:,:,i]) / (N)
-        #     #     CGG[:,:,i] = (Gu_centrato_d_K[:,:,i].T @ Gu_centrato_d_K[:,:,i]) / (N)
-        #     CuG = np.einsum("ndk,nek->dek", u_centrato_d_K, Gu_centrato_d_K) / (N)
-        #     CGG = np.einsum("ndk,nek->dek", Gu_centrato_d_K, Gu_centrato_d_K) / (N)
-        #     #CuG = block_diag([CuG[:, :, i] for i in range(K_dim)]).toarray()
-        #     #CGG = block_diag([CGG[:, :, i] for i in range(K_dim)]).toarray()
-        #     for i in range(K_dim):
-        #         u_next = np.zeros((N, d))
-        #         u_n = ep.rearrange(u[n], "n (d k) -> n (k d)", d=d_stadi, k=K_dim)[:, i*d_stadi: (i+1)*d_stadi]
-        #         L, l = cho_factor(CGG[:, :, i] + IGamma[:d_stadi, :d_stadi])
-        #         K_gain = CuG[:, :, i] @ cho_solve((L,l), np.eye(len(L)))
-        #         u_next[:, i*d_stadi: (i+1)*d_stadi] = u_n + (K_gain @ ((y - Gu)[:, i*d_stadi: (i+1)*d_stadi]).T).T
-        #     u[n + 1] = ep.rearrange(u_next, "n (k d) -> n (d k)", d=d_stadi, k=K_dim)
-
-        # CuG, CGG = np.zeros((d, d)), np.zeros((d, d))
-        # Cug = (u_centrato.T @ Gu_centrato) / (N)
-        # Cgg = (Gu_centrato.T @ Gu_centrato) / (N)
-        # for i in range(K_dim):
-        #     CuG[i*d_stadi:(i+1)*d_stadi, i*d_stadi:(i+1)*d_stadi] = Cug[i*d_stadi:(i+1)*d_stadi, i*d_stadi:(i+1)*d_stadi]
-        #     CGG[i*d_stadi:(i+1)*d_stadi, i*d_stadi:(i+1)*d_stadi] = Cgg[i*d_stadi:(i+1)*d_stadi, i*d_stadi:(i+1)*d_stadi]
 
         # Aggiorno u
         # u[n+1] = u[n] + np.tile(CuG @ np.linalg.inv(CGG + IGamma), (N,1,1)) @ (np.tile(y, (N,1,1)) - np.tile(G, (N,1,1)) @ u[n].T).T
-        L, l = cho_factor(CGG + IGamma)
-        K_gain = CuG @ cho_solve((L, l), np.eye(len(L)))
+        L, l = lib.cho_factor(CGG + IGamma)
+        K_gain = CuG @ lib.cho_solve((L, l), np.eye(len(L)))
         u[n + 1] = u[n] + (K_gain @ (y - Gu).T).T
         # u[n + 1] = u[n] + (CuG @ np.linalg.inv(CGG + IGamma) @ (y - Gu).T).T
-        if teta < norm(eta) ** 2:
+        if teta < lib.norm(eta) ** 2:
             print("EKI-Converge in ", n, "iterazioni")
             return u[: n + 2], TETA[: n + 1], res[: n + 1]
     # print(f"EKI-Non converge in {Ntmax} iterazioni. Misfit = {teta}, norm(eta)2 = {norm(eta) ** 2}")
     print(
-        f"EKI-Non converge in {Ntmax} iterazioni. Misfit - norm(eta)2 = {teta - norm(eta) ** 2 :.6f}. Misfit / norm(eta)2 = {teta / norm(eta) ** 2 :.6f}"
+        f"EKI-Non converge in {Ntmax} iterazioni. Misfit - norm(eta)2 = {teta - lib.norm(eta) ** 2 :.6f}. Misfit / norm(eta)2 = {teta / lib.norm(eta) ** 2 :.6f}"
     )
     return u, TETA, res
 
@@ -105,7 +62,7 @@ def G(u, d, K, dx, dy, Gg, calc):  # G lineare
         if len(np.shape(u)) == 1:  # u è un vettore d. Serve per calcolare y e teta
             return g @ u
         else:  # u è una matrice N x d
-            g = block_diag([g] * N)
+            g = lib.block_diag([g] * N)
             p = g @ u.flatten()
             return p.reshape((N, K))
     elif Gg == 1:
@@ -126,7 +83,7 @@ def G(u, d, K, dx, dy, Gg, calc):  # G lineare
         if len(np.shape(u)) == 1:  # u è un vettore d. Serve per calcolare y e teta
             return g @ u
         else:  # u è una matrice N x d
-            g = block_diag([g] * N)
+            g = lib.block_diag([g] * N)
             p = g @ u.flatten()
             return p.reshape((N, K))
     elif Gg == 2:
@@ -139,7 +96,7 @@ def G(u, d, K, dx, dy, Gg, calc):  # G lineare
         if len(np.shape(u)) == 1:  # u è un vettore d. Serve per calcolare y e teta
             return g @ u
         else:  # u è una matrice N x d
-            g = block_diag([g] * N)
+            g = lib.block_diag([g] * N)
             p = g @ u.flatten()
             return p.reshape((N, K))
     elif Gg == 3:  # G generale
@@ -185,9 +142,9 @@ def G(u, d, K, dx, dy, Gg, calc):  # G lineare
                 / dx**2,  # main diagonal
                 -uu[1:] * np.exp(uu[1:]) / dx**2,  # superdiagonal
             ]
-            A = diags(diagonals, offsets=[-1, 0, 1], shape=(N * K, N * K))
+            A = lib.diags(diagonals, offsets=[-1, 0, 1], shape=(N * K, N * K))
             b = np.ones(N * K)
-            p = spsolve(A, b)
+            p = lib.spsolve(A, b)
             return p.reshape((N, K))
     elif Gg == 4:
         # Discretizzazione di -p'' + up' = u
@@ -231,9 +188,9 @@ def G(u, d, K, dx, dy, Gg, calc):  # G lineare
                 1 / dx**2 * (2) + 1 / dx * (-uc),  # main diagonal
                 1 / dx**2 * (-uno[1:]) + 1 / dx * (uu[:-1]),  # superdiagonal
             ]
-            A = diags(diagonals, offsets=[-1, 0, 1], shape=(N * K, N * K))
+            A = lib.diags(diagonals, offsets=[-1, 0, 1], shape=(N * K, N * K))
             b = uc
-            p = spsolve(A, b)
+            p = lib.spsolve(A, b)
             return p.reshape((N, K))
     elif Gg == 5:
         # Discretizzazione di d2/dx2(pu) + d/Dx(p log(|u|)) + p = 1
@@ -303,9 +260,9 @@ def G(u, d, K, dx, dy, Gg, calc):  # G lineare
                 1 / dx**2 * (2 * uu[1:] - uc[:-1])
                 + 1 / dx * (np.log(np.abs(uc[:-1] + 1e-8))),  # superdiagonal
             ]
-            A = diags(diagonals, offsets=[-1, 0, 1], shape=(N * K, N * K))
+            A = lib.diags(diagonals, offsets=[-1, 0, 1], shape=(N * K, N * K))
             b = np.ones(N * K)
-            p = spsolve(A, b)
+            p = lib.spsolve(A, b)
             return p.reshape((N, K))
     elif Gg == 6:
         # Discretizzazione di -(exp(u_1) p')' = 1, DIM == 2
@@ -331,24 +288,24 @@ def G(u, d, K, dx, dy, Gg, calc):  # G lineare
         else:  # u è una matrice N x d
             u1 = u[:, 0]
             u2 = u[:, 1]
-            uc1 = ep.repeat(u1, "n -> (n rep)", rep=K)  # u[i] diagonale
-            ud1 = ep.repeat(u1, "n -> (n rep)", rep=K)
+            uc1 = lib.einops.repeat(u1, "n -> (n rep)", rep=K)  # u[i] diagonale
+            ud1 = lib.einops.repeat(u1, "n -> (n rep)", rep=K)
             ud1[K - 1 :: K] = 0  # u[i-1] sottodiagonale
-            uu1 = ep.repeat(u1, "n -> (n rep)", rep=K)
+            uu1 = lib.einops.repeat(u1, "n -> (n rep)", rep=K)
             uu1[K - 1 :: K] = 0  # u[i+1] sopradiagonale
             diagonals = [
                 (-np.exp(ud1) / dx**2),  # subdiagonal
                 (2 * np.exp(uc1) / dx**2),  # main diagonal
                 (-np.exp(uu1) / dx**2),  # superdiagonal
             ]
-            A = diags(diagonals, offsets=[-1, 0, 1], shape=(N * K, N * K))
+            A = lib.diags(diagonals, offsets=[-1, 0, 1], shape=(N * K, N * K))
             b = np.ones(N * K)
             # Condizioni al bordo
             A.data[1, 0::K] = 1
             A.data[1, K - 1 :: K] = 1
             b[0::K] = 0
             b[K - 1 :: K] = u2
-            p = spsolve(A, b)
+            p = lib.spsolve(A, b)
             return p.reshape((N, K))
 
 
@@ -357,101 +314,101 @@ def G(u, d, K, dx, dy, Gg, calc):  # G lineare
 
 # Grafico
 def grafico(x, y, u0, uM, U, GU, GuM, teta, res, SALVA=False, savepath="\Desktop\\"):
-    plt.figure(1)
-    plt.title("Dati")
-    plt.plot(x, y, "x--y", label="osservazioni")
-    plt.plot(x, GU, "-g", label=f"Sol Esatta")
-    plt.plot(x, GuM, "-r", label=f"usando controllo ricostruito")
-    plt.xlabel("x")
-    plt.legend()
+    lib.plt.figure(1)
+    lib.plt.title("Dati")
+    lib.plt.plot(x, y, "x--y", label="osservazioni")
+    lib.plt.plot(x, GU, "-g", label=f"Sol Esatta")
+    lib.plt.plot(x, GuM, "-r", label=f"usando controllo ricostruito")
+    lib.plt.xlabel("x")
+    lib.plt.legend()
     if SALVA:
-        plt.savefig(savepath + "Dati Ricostruiti.png")
+        lib.plt.savefig(savepath + "Dati Ricostruiti.png")
 
-    plt.figure(2)
-    plt.title("Ricostruzione Controllo")
-    plt.plot(x, uM, "x-r", label=f"controllo ricostruito")
-    plt.plot(x, np.mean(u0, axis=0), "y", label=f"controllo iniziale")
-    plt.plot(x, U, "-g", label=f"controllo esatto")
-    plt.xlabel("x")
-    plt.legend()
+    lib.plt.figure(2)
+    lib.plt.title("Ricostruzione Controllo")
+    lib.plt.plot(x, uM, "x-r", label=f"controllo ricostruito")
+    lib.plt.plot(x, np.mean(u0, axis=0), "y", label=f"controllo iniziale")
+    lib.plt.plot(x, U, "-g", label=f"controllo esatto")
+    lib.plt.xlabel("x")
+    lib.plt.legend()
     if SALVA:
-        plt.savefig(savepath + "Ricostruzione Controllo.png")
+        lib.plt.savefig(savepath + "Ricostruzione Controllo.png")
 
-    plt.figure(3)
-    plt.title("Misfit")
-    plt.semilogy(teta, "x--", label="Misfit")
-    plt.semilogy(np.ones(len(teta)) * norm(eta) ** 2, label="norm(eta)2")
-    plt.grid(True, axis="y", which="major", linestyle="--", linewidth=0.5)
-    plt.xlabel("Iterazioni")
-    plt.legend()
+    lib.plt.figure(3)
+    lib.plt.title("Misfit")
+    lib.plt.semilogy(teta, "x--", label="Misfit")
+    lib.plt.semilogy(np.ones(len(teta)) * lib.norm(eta) ** 2, label="norm(eta)2")
+    lib.plt.grid(True, axis="y", which="major", linestyle="--", linewidth=0.5)
+    lib.plt.xlabel("Iterazioni")
+    lib.plt.legend()
     if SALVA:
-        plt.savefig(savepath + "Misfit.png")
+        lib.plt.savefig(savepath + "Misfit.png")
 
-    plt.figure(4)
-    plt.title("Residuo")
-    plt.semilogy(res, "x--", label="Residuo")
-    plt.grid(True, axis="y", which="both", linestyle="--", linewidth=0.5)
-    plt.xlabel("Iterazioni")
-    plt.legend()
+    lib.plt.figure(4)
+    lib.plt.title("Residuo")
+    lib.plt.semilogy(res, "x--", label="Residuo")
+    lib.plt.grid(True, axis="y", which="both", linestyle="--", linewidth=0.5)
+    lib.plt.xlabel("Iterazioni")
+    lib.plt.legend()
     if SALVA:
-        plt.savefig(savepath + "Residuo.png")
+        lib.plt.savefig(savepath + "Residuo.png")
 
-    plt.figure(5)
-    plt.title("Controlli iniziali")
+    lib.plt.figure(5)
+    lib.plt.title("Controlli iniziali")
     for i in range(N):
-        plt.plot(x, u0[i], "-", label=f"controllo iniziale {i}")
-    plt.plot(x, U, "o", label=f"controllo esatta")
+        lib.plt.plot(x, u0[i], "-", label=f"controllo iniziale {i}")
+    lib.plt.plot(x, U, "o", label=f"controllo esatta")
     if SALVA:
-        plt.savefig(savepath + "Controlli iniziali.png")
+        lib.plt.savefig(savepath + "Controlli iniziali.png")
 
-    plt.show()
+    lib.plt.show()
 
 
 def grafico2D(
     x, y, u0, uM, u, U, GU, GuM, teta, res, SALVA=False, savepath="\Desktop\\"
 ):
-    plt.figure(1)
-    plt.title("Dati")
-    plt.plot(x, y, "x--y", label="osservazioni")
-    plt.plot(x, GU, "-g", label=f"Sol Esatta")
-    plt.plot(x, GuM, "-r", label=f"usando controllo ricostruito")
-    plt.xlabel("x")
-    plt.legend()
+    lib.plt.figure(1)
+    lib.plt.title("Dati")
+    lib.plt.plot(x, y, "x--y", label="osservazioni")
+    lib.plt.plot(x, GU, "-g", label=f"Sol Esatta")
+    lib.plt.plot(x, GuM, "-r", label=f"usando controllo ricostruito")
+    lib.plt.xlabel("x")
+    lib.plt.legend()
     if SALVA:
-        plt.savefig(savepath + "Dati Ricostruiti.png")
+        lib.plt.savefig(savepath + "Dati Ricostruiti.png")
 
-    plt.figure(2)
-    plt.title("Ricostruzione Controllo")
-    plt.plot(u[:, 0], u[:, 1], ".r", label=f"ensemble controllo finale")
-    plt.plot(uM[0], uM[1], "oy", label=f"media controllo finale")
-    plt.plot(U[0], U[1], "xg", label=f"controllo esatto")
-    plt.plot(u0[:, 0], u0[:, 1], "b.", label=f"controllo iniziale")
-    plt.xlabel("u1")
-    plt.ylabel("u2")
-    plt.legend()
+    lib.plt.figure(2)
+    lib.plt.title("Ricostruzione Controllo")
+    lib.plt.plot(u[:, 0], u[:, 1], ".r", label=f"ensemble controllo finale")
+    lib.plt.plot(uM[0], uM[1], "oy", label=f"media controllo finale")
+    lib.plt.plot(U[0], U[1], "xg", label=f"controllo esatto")
+    lib.plt.plot(u0[:, 0], u0[:, 1], "b.", label=f"controllo iniziale")
+    lib.plt.xlabel("u1")
+    lib.plt.ylabel("u2")
+    lib.plt.legend()
     if SALVA:
-        plt.savefig(savepath + "Ricostruzione Controllo.png")
+        lib.plt.savefig(savepath + "Ricostruzione Controllo.png")
 
-    plt.figure(3)
-    plt.title("Misfit")
-    plt.semilogy(teta, "x--", label="Misfit")
-    plt.semilogy(np.ones(len(teta)) * norm(eta) ** 2, label="norm(eta)2")
-    plt.grid(True, axis="y", which="major", linestyle="--", linewidth=0.5)
-    plt.xlabel("Iterazioni")
-    plt.legend()
+    lib.plt.figure(3)
+    lib.plt.title("Misfit")
+    lib.plt.semilogy(teta, "x--", label="Misfit")
+    lib.plt.semilogy(np.ones(len(teta)) * lib.norm(eta) ** 2, label="norm(eta)2")
+    lib.plt.grid(True, axis="y", which="major", linestyle="--", linewidth=0.5)
+    lib.plt.xlabel("Iterazioni")
+    lib.plt.legend()
     if SALVA:
-        plt.savefig(savepath + "Misfit.png")
+        lib.plt.savefig(savepath + "Misfit.png")
 
-    plt.figure(4)
-    plt.title("Residuo")
-    plt.semilogy(res, "x--", label="Residuo")
-    plt.grid(True, axis="y", which="both", linestyle="--", linewidth=0.5)
-    plt.xlabel("Iterazioni")
-    plt.legend()
+    lib.plt.figure(4)
+    lib.plt.title("Residuo")
+    lib.plt.semilogy(res, "x--", label="Residuo")
+    lib.plt.grid(True, axis="y", which="both", linestyle="--", linewidth=0.5)
+    lib.plt.xlabel("Iterazioni")
+    lib.plt.legend()
     if SALVA:
-        plt.savefig(savepath + "Residuo.png")
+        lib.plt.savefig(savepath + "Residuo.png")
 
-    fig = plt.figure(5)
+    fig = lib.plt.figure(5)
     ax = fig.add_subplot(111, projection="3d")
     ax.set_title("Controlli iniziali")
     # Calcolo della densità
@@ -460,16 +417,16 @@ def grafico2D(
         np.linspace(u0[:, 0].min(), u0[:, 0].max(), 100),
         np.linspace(u0[:, 1].min(), u0[:, 1].max(), 100),
     )
-    zi = gaussian_kde(xy)(np.vstack([xi.flatten(), yi.flatten()]))
+    zi = lib.gaussian_kde(xy)(np.vstack([xi.flatten(), yi.flatten()]))
     zi = zi.reshape(xi.shape)
     ax.plot_surface(xi, yi, zi, cmap="viridis")
     ax.set_xlabel("u1")
     ax.set_ylabel("u2")
     ax.set_zlabel("Densità")
     if SALVA:
-        plt.savefig(savepath + "Controlli iniziali.png")
+        lib.plt.savefig(savepath + "Controlli iniziali.png")
 
-    plt.show()
+    lib.plt.show()
 
 
 if __name__ == "__main__":
