@@ -1,5 +1,7 @@
 """
 Lista funzioni disponibili:
+- my_line_profiler(funzione_da_testare, *args)
+- my_pstats_profiler(funzione_da_testare, *args)
 - TableauRK(metodo)
 - autovalori(case)
 - controllo_iniziale(y, d, K, N, dt, A, b, c, f, t, contr=2)
@@ -22,6 +24,31 @@ from scipy.optimize import fsolve
 import sympy as sp
 import dati_iniziali_EKI_ODE as dati
 import ode_implicite as odei
+from line_profiler import LineProfiler
+import cProfile, pstats
+
+
+############################################################################################
+############################################################################################
+############################################################################################
+def my_line_profiler(funzione_da_testare, *args):
+    profiler = LineProfiler()
+    profiler.add_function(funzione_da_testare)
+    profiler.enable()
+    output = funzione_da_testare(*args)
+    profiler.disable()
+    profiler.print_stats()
+    return output
+
+
+def my_pstats_profiler(funzione_da_testare, *args):
+    profiler = cProfile.Profile()
+    profiler.enable()
+    output = funzione_da_testare(*args)
+    profiler.disable()
+    stats = pstats.Stats(profiler)
+    stats.sort_stats("cumulative").print_stats(10)
+    return output
 
 
 ############################################################################################

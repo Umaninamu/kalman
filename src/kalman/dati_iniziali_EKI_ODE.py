@@ -32,9 +32,9 @@ def datiEKI(f, y_prev, t_prev, dt, A, b, c):
 
 
 def datiRK():
-    case = 10  # Caso f da risolvere
-    y0 = np.array([1, 0, 0])  # Dati iniziali al tempo 0 e Dimensione del sistema
-    t0, T = 0, 10  # Tempo
+    case = 11  # Caso f da risolvere
+    y0 = np.array([1, 2])  # Dati iniziali al tempo 0 e Dimensione del sistema
+    t0, T = 0, 100  # Tempo
     lam, Jf = lib.autovalori(case)
     # Vettore dei passi temporali degli autovalori. Se l'autovalore==0, fa 1 iterazione
     Dt = 1 / np.where(lam == 0, 1e-8, np.abs(lam))
@@ -66,3 +66,7 @@ def comincia():
 
 if __name__ == "__main__":
     comincia()
+
+    # lib.my_line_profiler(comincia)
+    # lib.my_pstats_profiler(comincia)
+    # lib.cProfile.run('comincia()')

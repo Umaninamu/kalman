@@ -433,7 +433,7 @@ if __name__ == "__main__":
     print("Dati iniziali")
     Ntmax = 100
     gamma = 1e-2
-    Gg = 6  # Modello G da usare (0-1-2 lineari, 3-4-5 non lineari, 6 2D)
+    Gg = 0  # Modello G da usare (0-1-2 lineari, 3-4-5 non lineari, 6 2D)
     if Gg in [0, 1, 2, 3, 4, 5]:
         d = K = 256
     elif Gg in [6]:
