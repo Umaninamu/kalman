@@ -4,15 +4,33 @@ import time
 
 
 def RungeKuttaEKI(f, y_prev, t_prev, dt, A, b, c):
-    u0, U, y, G, ETA, Ntmax, IGamma, d, K, N = lib.dati.datiEKI(
+    u0, U, y, G, ETA, Ntmax, IGamma, s, d, N, Nlam = lib.dati.datiEKI(
         f, y_prev, t_prev, dt, A, b, c
     )
-    u = lib.eki.EKI(u0, U, y, G, ETA, Ntmax, IGamma, d, K)[0][
-        -1
-    ]  # u==u_tempo_finale, return [Y, teta, res]
-    um = np.mean(u, axis=0)
-    um = lib.einops.rearrange(um, "(d k) -> d k", k=K, d=d)
-    F = np.array([f(um[i], t_prev + c[i] * dt) for i in range(d)])
+    # COUPLED ##############################################################################
+    # u = lib.eki.EKI_Coupled(u0, U, y, G, ETA, Ntmax, IGamma, s, Nlam)[0]  # u==u_tempo_finale, return [Y, teta, res]
+    # um = np.mean(u, axis=0)
+    ##um = lib.einops.rearrange(um, "(s d) -> s d", d=d, s=s)
+    # PER STADI ############################################################################
+    um = np.zeros((s, d))
+    u_i = u0[:, 0]
+    # y_i = y
+    print("")
+    for i in range(s):
+        y_i = y + dt * sum(A[i, k] * f(um[k], t_prev + c[k] * dt) for k in range(i))
+
+        def G(u):
+            Gu = u - dt * A[i, i] * f(
+                u, t_prev + c[i] * dt
+            )  # G(u)=u-dt*sum(A[i,k]*f(Y[k],t+c[k]*dt))
+            return Gu
+
+        # u_i = lib.eki.EKI(u_i, U, y_i, G, ETA, Ntmax, IGamma)[0][-1]
+        u_i = lib.eki.EKI(u0[:, i], U, y_i, G, ETA, Ntmax, IGamma)[0][-1]
+        um[i] = np.mean(u_i, axis=0)
+    #######################################################################################
+
+    F = np.array([f(um[i], t_prev + c[i] * dt) for i in range(s)])
     y_next = y_prev + dt * b @ F
     return y_next
 

@@ -3,43 +3,44 @@ import numpy as np
 
 
 def datiEKI(f, y_prev, t_prev, dt, A, b, c):
-    d = len(A)  # Numero di stadi
-    K = len(y_prev)  # Dimensione del sistema
+    s = len(A)  # Numero di stadi
+    d = len(y_prev)  # Dimensione del sistema
     N = 20  # Numero di ensemble
+    Nlam = 3  # Numero di coeffienti di EKI_Coupled_direct
     Ntmax = 200  # Numero massimo di iterazioni
-    # gamma = 1e-2
-    gamma = dt**3
-    # gamma = 1e-12 * dt**3 # No per case==10
+    gamma = 1e-4 * dt**s
+    # gamma = dt**s
+    # gamma = 1e-12 * dt**s # No per case==10
 
-    def G(Y):
-        u = lib.einops.rearrange(Y, "n (d k) -> n d k", k=K, d=d)
-        Gu = (
-            u
-            - y_prev[lib.np.newaxis, lib.np.newaxis, :]
-            - dt * A @ f(u, t_prev + c * dt)
-        )
-        Gu = lib.einops.rearrange(Gu, "n d k -> n (d k)")
+    def G(u, lam):
+        # u = lib.einops.rearrange(Y, "n (s d) -> n s d", d=d, s=s)
+
+        G_s = u - dt * A @ f(
+            u, t_prev + c * dt
+        )  # G(u)=u-dt*sum(A[i,k]*f(Y[k],t+c[k]*dt))
+        Gu = lam @ G_s  # Gu=sum(lam_s*G_s)
+        # Gu = lib.einops.rearrange(Gu, "n s d -> n (s d)")
         return Gu
 
-    u0 = lib.controllo_iniziale(y_prev, d, K, N, dt, A, b, c, f, t_prev, 2)
-    u0 = lib.einops.rearrange(u0, "d n k -> n (d k)")
-    eta = np.random.normal(0, gamma, K)  # Rumore se IGamma è diagonale
-    ETA = lib.einops.repeat(eta, "k -> (rep k)", rep=d)
-    IGamma = gamma**2 * np.eye(d * K)  # Matrice di covarianza del rumore
-    y = ETA  # Dati osservati y=G(Y)+eta
-    U = np.zeros(d)  # INUTILE
-    return u0, U, y, G, ETA, Ntmax, IGamma, d, K, N
+    u0 = lib.controllo_iniziale(y_prev, s, d, N, dt, A, b, c, f, t_prev, 2)
+    # u0 = lib.einops.rearrange(u0, "s n d -> n (s d)")
+    eta = np.random.normal(0, gamma, d)  # Rumore se IGamma è diagonale
+    # ETA = lib.einops.repeat(eta, "d -> (rep d)", rep=s)
+    IGamma = gamma**2 * np.eye(d)  # Matrice di covarianza del rumore
+    y = y_prev + eta  # Dati osservati y=G(Y)+eta
+    U = np.zeros(s)  # INUTILE
+    return u0, U, y, G, eta, Ntmax, IGamma, s, d, N, Nlam
 
 
 def datiRK():
-    case = 11  # Caso f da risolvere
+    case = 9  # Caso f da risolvere
     y0 = np.array([1, 2])  # Dati iniziali al tempo 0 e Dimensione del sistema
-    t0, T = 0, 100  # Tempo
+    t0, T = 0, 20  # Tempo
     lam, Jf = lib.autovalori(case)
     # Vettore dei passi temporali degli autovalori. Se l'autovalore==0, fa 1 iterazione
     Dt = 1 / np.where(lam == 0, 1e-8, np.abs(lam))
     dt = np.min(Dt)  # Passo temporale, 1/autovalore
-    # dt=100
+    # dt=0.05
     metodo = 5  # EulerImplicit, RK4, Cranknicolson, Dirk22, Dirk33, TrapezoidalRule, RadauIIA3, GaussLegendre4
     A, b, c = lib.TableauRK(metodo)
     calcolaOrdine = False

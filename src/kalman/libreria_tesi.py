@@ -18,7 +18,7 @@ from scipy.sparse.linalg import spsolve
 from scipy.sparse import block_diag
 import einops
 from scipy.stats import gaussian_kde
-import EKI as eki
+import EKI_coupled as eki
 from scipy.integrate import solve_ivp
 from scipy.optimize import fsolve
 import sympy as sp
@@ -145,7 +145,7 @@ def autovalori(case):
         Y = np.array([0, 0])  # NON SERVE
         J = lambda Y: np.array([[-41, 59], [40, -60]])
     elif case == 14:
-        ma, mb, mc, md = 100, 1, 100, 1
+        ma, mb, mc, md = 10, 1, 1, 1
         Y = np.array([0, 0])  # Punto di equilibrio.
         # Y = np.array([md / mc, ma / mb]) # Punto di equilibrio.
         J = lambda Y: np.array(
@@ -179,7 +179,7 @@ def controllo_iniziale(y, d, K, N, dt, A, b, c, f, t, contr=2):
         Funziona bene per case == 11: più lento del 5
         Funziona male per case == 12: se T grande (50) non vede i massimi
         """
-        u0 = np.random.normal(loc=y, scale=2 * dt, size=(d, N, K))
+        u0 = np.random.normal(loc=y, scale=dt, size=(N, d, K))
     elif contr == 3:
         """
         3) Controlli iniziali a media y_prev e deviazione standard > c_k-c_(k-1) * dt
@@ -274,6 +274,8 @@ def grafico_ode(y0, y_Newton, y_EKI, t, case, calcolaOrdine, dt, t0, T, f, A, b,
         plt.figure()
         plt.plot(t, y_Newton[:, i], ".-", label=f"y{i+1} Newton")
         plt.plot(t, y_EKI[:, i], "--", label=f"y{i+1} EKI")
+        if case == 9:
+            plt.plot(tt, sol[:, i], label=f"y{i+1} Soluzione esatta")
         plt.legend()
         plt.xlabel("Tempo")
         plt.ylabel("Valori")
@@ -284,6 +286,8 @@ def grafico_ode(y0, y_Newton, y_EKI, t, case, calcolaOrdine, dt, t0, T, f, A, b,
         plt.figure()
         plt.plot(y_Newton[:, 0], y_Newton[:, 1], ".-", label="Newton")
         plt.plot(y_EKI[:, 0], y_EKI[:, 1], "--", label="EKI")
+        if case == 9:
+            plt.plot(sol[:, 0], sol[:, 1], label="Soluzione esatta")
         plt.legend()
         plt.xlabel("y1")
         plt.ylabel("y2")
@@ -291,7 +295,7 @@ def grafico_ode(y0, y_Newton, y_EKI, t, case, calcolaOrdine, dt, t0, T, f, A, b,
 
     # Verifica convergenza
     if calcolaOrdine and case == 9:
-        Dt = [dt / 2**i for i in range(5)]
+        Dt = [dt / 2**i for i in range(6)]
         NT = np.zeros(len(Dt))
         errore_Newton = np.zeros((len(Dt), 2))
         errore_EKI = np.zeros((len(Dt), 2))
@@ -373,7 +377,9 @@ def ff(y, t, case):
         J = np.array([[-1, 0.01], [0.01, -16]])
         if len(y.shape) == 1:  # y=y1,y2. Per Newton
             Y = J @ y
-        else:  # y: N x d x K. Per EKI
+        elif len(y.shape) == 2:  # y: N x d x K. Per EKI
+            Y = (J @ y.T).T
+        elif len(y.shape) == 3:
             Y = np.einsum("ij,ghj->ghi", J, y)
     elif case == 10:  # Robertson Chemical Reaction, Separabile
         # T=1e11, y0=1,0,0, Nt=1e3
@@ -385,7 +391,15 @@ def ff(y, t, case):
                     mc * y[1] ** 2,
                 ]
             )
-        else:  # y: N x d x K. Per EKI
+        elif len(y.shape) == 2:  # y: N x d x K. Per EKI
+            Y = np.array(
+                [
+                    -ma * y[:, 0] + mb * y[:, 1] * y[:, 2],
+                    ma * y[:, 0] - mb * y[:, 1] * y[:, 2] - mc * y[:, 1] ** 2,
+                    mc * y[:, 1] ** 2,
+                ]
+            ).T
+        elif len(y.shape) == 3:
             Y = np.array(
                 [
                     -ma * y[:, :, 0] + mb * y[:, :, 1] * y[:, :, 2],
@@ -395,11 +409,14 @@ def ff(y, t, case):
                     mc * y[:, :, 1] ** 2,
                 ]
             ).transpose(1, 2, 0)
+
     elif case == 11:  # Electrical Circuits / Van der Pol
         # T=75, y0=2,0
         if len(y.shape) == 1:  # y=y1,y2. Per Newton
             Y = np.array([y[1], mu * (1 - y[0] ** 2) * y[1] - y[0]])
-        else:  # y: N x d x K. Per EKI
+        elif len(y.shape) == 2:  # y: N x d x K. Per EKI
+            Y = np.array([y[:, 1], mu * (1 - y[:, 0] ** 2) * y[:, 1] - y[:, 0]]).T
+        elif len(y.shape) == 3:
             Y = np.array(
                 [y[:, :, 1], mu * (1 - y[:, :, 0] ** 2) * y[:, :, 1] - y[:, :, 0]]
             ).transpose(1, 2, 0)
@@ -413,7 +430,15 @@ def ff(y, t, case):
                     0.161 * (y[0] - y[2]),
                 ]
             )
-        else:  # y: N x d x K. Per EKI
+        elif len(y.shape) == 2:  # y: N x d x K. Per EKI
+            Y = np.array(
+                [
+                    77.27 * (y[:, 1] + y[:, 0] * (1 - 8.375e-6 * y[:, 0] - y[:, 1])),
+                    1 / 77.27 * (y[:, 2] - (1 + y[:, 0]) * y[:, 1]),
+                    0.161 * (y[:, 0] - y[:, 2]),
+                ]
+            ).T
+        elif len(y.shape) == 3:
             Y = np.array(
                 [
                     77.27
@@ -438,7 +463,18 @@ def ff(y, t, case):
                     + 2 * t**3 * (t**2 - 50 * t - 2) * np.exp(-(t**2)),
                 ]
             )
-        else:  # y: N x d x K. Per EKI
+        elif len(y.shape) == 2:  # y: N x d x K. Per EKI
+            Y = np.array(
+                [
+                    -41 * y[:, 0]
+                    + 59 * y[:, 1]
+                    + -2 * t**3 * (t**2 - 50 * t - 2) * np.exp(-(t**2)),
+                    40 * y[:, 0]
+                    - 60 * y[:, 1]
+                    + 2 * t**3 * (t**2 - 50 * t - 2) * np.exp(-(t**2)),
+                ]
+            ).T
+        elif len(y.shape) == 3:
             Y = np.array(
                 [
                     -41 * y[:, :, 0]
@@ -453,7 +489,14 @@ def ff(y, t, case):
         # T=15, y0=1,0.1
         if len(y.shape) == 1:
             Y = np.array([ma * y[0] - mb * y[0] * y[1], mc * y[0] * y[1] - md * y[1]])
-        else:
+        elif len(y.shape) == 2:  # y: N x d x K. Per EKI
+            Y = np.array(
+                [
+                    ma * y[:, 0] - mb * y[:, 0] * y[:, 1],
+                    mc * y[:, 0] * y[:, 1] - md * y[:, 1],
+                ]
+            ).T
+        elif len(y.shape) == 3:
             Y = np.array(
                 [
                     ma * y[:, :, 0] - mb * y[:, :, 0] * y[:, :, 1],

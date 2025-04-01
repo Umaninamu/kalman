@@ -2,8 +2,9 @@ import libreria_tesi as lib
 import numpy as np
 
 
-def EKI(u0, U, y, G, eta, Ntmax, IGamma, d_stadi=0, K_dim=0):
+def EKI_Coupled(u0, U, y, G, eta, Ntmax, IGamma, s_stadi=0, K_dim=0):
     # g = lambda u: np.array(list(map(g, u))) # Applico g a ogni controllo
+    coefficienti_coupled_direct_approach(s_stadi)
     N, d = np.shape(u0)
     u = np.zeros((Ntmax + 1, N, d))
     u[0] = u0
@@ -43,6 +44,12 @@ def EKI(u0, U, y, G, eta, Ntmax, IGamma, d_stadi=0, K_dim=0):
         f"EKI-Non converge in {Ntmax} iterazioni. Misfit - norm(eta)2 = {teta - lib.norm(eta) ** 2 :.6f}. Misfit / norm(eta)2 = {teta / lib.norm(eta) ** 2 :.6f}"
     )
     return u, TETA, res
+
+
+def coefficienti_coupled_direct_approach(s, Nlam=20):
+    lam = np.random.uniform(0, 1, (Nlam, s))
+    lam /= np.sum(lam, axis=1)[:, np.newaxis]
+    return lam
 
 
 """Esempi di G"""
@@ -433,7 +440,7 @@ if __name__ == "__main__":
     print("Dati iniziali")
     Ntmax = 100
     gamma = 1e-2
-    Gg = 0  # Modello G da usare (0-1-2 lineari, 3-4-5 non lineari, 6 2D)
+    Gg = 6  # Modello G da usare (0-1-2 lineari, 3-4-5 non lineari, 6 2D)
     if Gg in [0, 1, 2, 3, 4, 5]:
         d = K = 256
     elif Gg in [6]:
@@ -481,7 +488,7 @@ if __name__ == "__main__":
 
     GU = g(U)  # G(Controllo esatto)
     y = GU + eta  # Dati osservati
-    u, teta, res = EKI(u0, U, y, g, eta, Ntmax, IGamma)
+    u, teta, res = EKI_Coupled(u0, U, y, g, eta, Ntmax, IGamma)
     um = np.mean(u[-1], axis=0)  # Media di u finale
     print("Fine calcolo")
     GuM = g(um)  # G(Controllo ricostruito)
