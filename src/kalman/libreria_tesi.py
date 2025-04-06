@@ -47,7 +47,7 @@ def my_pstats_profiler(funzione_da_testare, *args):
     output = funzione_da_testare(*args)
     profiler.disable()
     stats = pstats.Stats(profiler)
-    stats.sort_stats("cumulative").print_stats(10)
+    stats.sort_stats("cumulative").print_stats(20)
     return output
 
 
@@ -151,6 +151,10 @@ def autovalori(case):
         J = lambda Y: np.array(
             [[ma - mb * Y[1], -mb * Y[0]], [mc * Y[1], mc * Y[0] - md]]
         )
+    elif case == 15:
+        mu = 100
+        Y = np.array([1])  # Punto di equilibrio.
+        J = lambda Y: np.array([-2 * mu * Y + 1])  # Derivata della funzione f
     lam = np.linalg.eigvals(J(Y))
     print(f"Autovalori: {lam}")
     return lam, J
@@ -220,6 +224,8 @@ def controllo_iniziale(y, d, K, N, dt, A, b, c, f, t, contr=2):
     elif contr == 6:
         """ """
         u0 = np.random.normal(loc=y_next, scale=dt, size=(d, N, K))
+    elif contr == 7:
+        u0 = np.random.normal(loc=y, scale=c * dt, size=(N, d, K))
 
     return u0
 
@@ -258,7 +264,7 @@ def grafico_ode(y0, y_Newton, y_EKI, t, case, calcolaOrdine, dt, t0, T, f, A, b,
         # (c1, c2) = np.linalg.solve(np.array([v1, v2]).T, y0)
 
         # Calcolo Soluzione
-        tt = np.linspace(t0, T)
+        tt = np.linspace(t0, T, 500)
         SOL = lambda t: (
             c1 * np.exp(l1 * t) * v1[:, np.newaxis]
             + c2 * np.exp(l2 * t) * v2[:, np.newaxis]
@@ -503,6 +509,13 @@ def ff(y, t, case):
                     mc * y[:, :, 0] * y[:, :, 1] - md * y[:, :, 1],
                 ]
             ).transpose(1, 2, 0)
+    elif case == 15:  # Caso scalare non lineare stiff
+        if len(y.shape) == 1:  # y scalare. Per Newton
+            Y = np.array([mu * y[0] * (1 - y[0])])  # y scalare. Per Newton
+        elif len(y.shape) == 2:  # y: N x d x K. Per EKI
+            Y = np.array([mu * y[:, 0] * (1 - y[:, 0])]).T
+        elif len(y.shape) == 3:
+            Y = np.array([mu * y[:, :, 0] * (1 - y[:, :, 0])]).transpose(1, 2, 0)
     return Y
 
 

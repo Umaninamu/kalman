@@ -3,20 +3,25 @@ import numpy as np
 import time
 
 
-def RungeKuttaEKI(f, y_prev, t_prev, dt, A, b, c):
+def RungeKuttaEKI(f, y_prev, t_prev, dt, A, b, c, y_N):
     u0, U, y, G, ETA, Ntmax, IGamma, s, d, N, Nlam = lib.dati.datiEKI(
         f, y_prev, t_prev, dt, A, b, c
     )
+
     # COUPLED ##############################################################################
     # u = lib.eki.EKI_Coupled(u0, U, y, G, ETA, Ntmax, IGamma, s, Nlam)[0]  # u==u_tempo_finale, return [Y, teta, res]
     # um = np.mean(u, axis=0)
     ##um = lib.einops.rearrange(um, "(s d) -> s d", d=d, s=s)
     # PER STADI ############################################################################
     um = np.zeros((s, d))
-    u_i = u0[:, 0]
+    u_i = u0[:, 0]  # Partenza dal passo precedente
     # y_i = y
-    print("")
+    # print("")
     for i in range(s):
+        # Partenza da NEWTON
+        u0 = lib.controllo_iniziale(y_N[i], s, d, N, dt, A, b, c[i], f, t_prev, 7)
+
+        u_i = u0[:, i]
         y_i = y + dt * sum(A[i, k] * f(um[k], t_prev + c[k] * dt) for k in range(i))
 
         def G(u):
@@ -60,7 +65,7 @@ def RungeKuttaNewton(f, y_prev, t_prev, dt, A, b, c, Jf):
 
         Y[i] = newton(F, Y)
     y_next = y_prev + dt * sum(b[i] * f(Y[i], t_prev + c[i] * dt) for i in range(s))
-    return y_next
+    return y_next, Y
 
 
 def ode(f, y0, t0, T, dt, A, b, c, Jf):
@@ -75,9 +80,9 @@ def ode(f, y0, t0, T, dt, A, b, c, Jf):
         if len(t) < 100 or n % (len(t) // 100) == 0:
             print(f"{n / len(t) * 100:.2f}%")
         t1 = time.time()
-        y_Newton[n] = RungeKuttaNewton(f, y_Newton[n - 1], t[n - 1], dt, A, b, c, Jf)
+        y_Newton[n], Y = RungeKuttaNewton(f, y_Newton[n - 1], t[n - 1], dt, A, b, c, Jf)
         t2 = time.time()
-        y_EKI[n] = RungeKuttaEKI(f, y_EKI[n - 1], t[n - 1], dt, A, b, c)
+        y_EKI[n] = RungeKuttaEKI(f, y_EKI[n - 1], t[n - 1], dt, A, b, c, Y)
         t3 = time.time()
 
         t_Newton += t2 - t1

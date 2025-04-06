@@ -22,7 +22,10 @@ def EKI(u0, U, y, G, eta, Ntmax, IGamma, s_stadi=0, Nlam=15):
         teta = np.mean(lib.norm(teta_vett, axis=1) ** 2)
         TETA[n] = teta
         if teta < lib.norm(eta) ** 2:
-            print("\tEKI-Converge in ", n, "iterazioni")
+            # print("\tEKI-Converge in ", n, "iterazioni")
+            return u[: n + 1], TETA[: n + 1], res[: n + 1]
+        elif np.abs(TETA[n] - TETA[n - 1]) < 1e-9:
+            # print("\tEKI-Residuo in  ", n, "iterazioni")
             return u[: n + 1], TETA[: n + 1], res[: n + 1]
         # print('    misfit =', teta, '\n    norm(rumore) =', norm(eta) ** 2)
         # Creo le matrici di covarianza

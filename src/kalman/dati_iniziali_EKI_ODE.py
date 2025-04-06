@@ -5,11 +5,11 @@ import numpy as np
 def datiEKI(f, y_prev, t_prev, dt, A, b, c):
     s = len(A)  # Numero di stadi
     d = len(y_prev)  # Dimensione del sistema
-    N = 20  # Numero di ensemble
+    N = 10  # Numero di ensemble
     Nlam = 3  # Numero di coeffienti di EKI_Coupled_direct
     Ntmax = 200  # Numero massimo di iterazioni
-    gamma = 1e-4 * dt**s
-    # gamma = dt**s
+    # gamma = 1e-4 * dt**s
+    gamma = dt**s
     # gamma = 1e-12 * dt**s # No per case==10
 
     def G(u, lam):
@@ -33,14 +33,14 @@ def datiEKI(f, y_prev, t_prev, dt, A, b, c):
 
 
 def datiRK():
-    case = 9  # Caso f da risolvere
+    case = 11  # Caso f da risolvere
     y0 = np.array([1, 2])  # Dati iniziali al tempo 0 e Dimensione del sistema
-    t0, T = 0, 20  # Tempo
+    t0, T = 0, 300  # Tempo
     lam, Jf = lib.autovalori(case)
     # Vettore dei passi temporali degli autovalori. Se l'autovalore==0, fa 1 iterazione
     Dt = 1 / np.where(lam == 0, 1e-8, np.abs(lam))
-    dt = np.min(Dt)  # Passo temporale, 1/autovalore
-    # dt=0.05
+    dt = np.max(Dt)  # Passo temporale, 1/autovalore
+    # dt=0.02
     metodo = 5  # EulerImplicit, RK4, Cranknicolson, Dirk22, Dirk33, TrapezoidalRule, RadauIIA3, GaussLegendre4
     A, b, c = lib.TableauRK(metodo)
     calcolaOrdine = False
