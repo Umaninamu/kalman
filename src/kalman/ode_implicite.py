@@ -30,7 +30,6 @@ def RungeKuttaEKI(f, y_prev, t_prev, dt, A, b, c, y_N):
             )  # G(u)=u-dt*sum(A[i,k]*f(Y[k],t+c[k]*dt))
             return Gu
 
-        # u_i = lib.eki.EKI(u_i, U, y_i, G, ETA, Ntmax, IGamma)[0][-1]
         u_i = lib.eki.EKI(u0[:, i], U, y_i, G, ETA, Ntmax, IGamma)[0][-1]
         um[i] = np.mean(u_i, axis=0)
     #######################################################################################
@@ -54,13 +53,16 @@ def RungeKuttaNewton(f, y_prev, t_prev, dt, A, b, c, Jf):
 
     for i in range(s):
 
-        def newton(F, Y, tol=1e-10, max_iter=100):
+        def newton(F, Y, tol=1e-10, max_iter=200):
             for iter in range(max_iter):
                 J = np.eye(len(Y[i])) - dt * A[i, i] * Jf(Y[i])  # Jacobiano di F
                 dy = np.linalg.solve(J, -F(Y, i))
                 Y[i] += dy
                 if np.linalg.norm(dy) < tol:
                     break
+                elif iter == max_iter - 1:
+                    print("Newton-Non converge in ", i, "iterazioni")
+                    # raise ValueError("Newton non converge")
             return Y[i]
 
         Y[i] = newton(F, Y)
@@ -96,21 +98,3 @@ def ode(f, y0, t0, T, dt, A, b, c, Jf):
 
 if __name__ == "__main__":
     lib.dati.comincia()
-    # case = 11 # Caso f da risolvere
-    # y0 = np.array([2,0]) # Dati iniziali al tempo 0 e Dimensione del sistema
-    # t0, T = 0, 75 # Tempo
-    # lam = np.abs(autovalori(case))
-    # # Vettore dei passi temporali degli autovalori. Se l'autovalore==0, fa 1 iterazione
-    # Dt = 1 / np.where(lam == 0, 1/(T-t0), lam)
-    # dt = Dt[0] # Passo temporale, 1/autovalore
-    # print(f"dt = {dt}")
-    # metodo = 5 # EulerImplicit, Heun, Cranknicolson, Dirk22, Dirk33, TrapezoidalRule, RadauIIA3, GaussLegendre4
-    # A, b, c = TableauRK(metodo)
-    # #calcolaOrdine = True
-    # calcolaOrdine = False #Solo per case==9
-    # f = lambda y, t: ff(y, t, case)
-
-    # f, y0, t0, T, dt, A, b, c, calcolaOrdine, case = dati.datiRK()
-    # t, y_Newton, y_EKI = ode(f, y0, t0, T, dt, A, b, c)
-    # print(f"norm(y_Newton - y_EKI) = {np.linalg.norm(y_Newton[-1] - y_EKI[-1])}")
-    # grafico(y0, y_Newton, y_EKI, t, case, calcolaOrdine, dt, t0, T, f, A, b, c)

@@ -106,7 +106,7 @@ def TableauRK(metodo):
 ############################################################################################
 def autovalori(case):
     # ode_implicite.py
-    global ma, mb, mc, md, mu
+    ma, mb, mc, md, mu = 0, 0, 0, 0, 0
     if case == 9:
         Y = np.array([1, 1])  # NON SERVE
         J = lambda Y: np.array([[-1, 0.01], [0.01, -16]])
@@ -157,7 +157,7 @@ def autovalori(case):
         J = lambda Y: np.array([-2 * mu * Y + 1])  # Derivata della funzione f
     lam = np.linalg.eigvals(J(Y))
     print(f"Autovalori: {lam}")
-    return lam, J
+    return lam, J, (ma, mb, mc, md, mu)
 
 
 ############################################################################################
@@ -333,7 +333,8 @@ def grafico_ode(y0, y_Newton, y_EKI, t, case, calcolaOrdine, dt, t0, T, f, A, b,
 ############################################################################################
 ############################################################################################
 ############################################################################################
-def ff(y, t, case):
+def ff(y, t, case, coefficienti_m):
+    ma, mb, mc, md, mu = coefficienti_m
     if case == 0:  # y' = y^2
         Y = np.array(y) ** 2
     elif case == 1:  # y'' + y = 0

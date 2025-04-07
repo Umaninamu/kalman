@@ -1,5 +1,42 @@
 import libreria_tesi as lib
 import numpy as np
+from numba import njit, float64, int64
+
+
+@njit(
+    (
+        float64[:, :, :],
+        float64[:],
+        float64[:, :],
+        float64[:],
+        float64[:, :],
+        int64,
+        int64,
+        float64[:],
+        float64[:],
+    )
+)
+def EKI_n(u, y, Gu, eta, IGamma, N, n, TETA, res):
+    teta_vett = Gu - y
+    teta = np.sum(teta_vett**2) / N
+    TETA[n] = teta
+
+    if teta < np.sum(eta**2):  # Converge
+        return u[: n + 1], TETA[: n + 1], res[: n + 1], 0
+    elif np.abs(TETA[n] - TETA[n - 1]) < 1e-14 and teta < np.sum(eta**2) * 5:  # Residuo
+        return u[: n + 1], TETA[: n + 1], res[: n + 1], 1
+    elif teta < np.sum(eta**2) * 1.3 and np.abs(TETA[n] - TETA[n - 1]) < 1:  # Plus
+        return u[: n + 1], TETA[: n + 1], res[: n + 1], 2
+
+    u_centrato = u[n] - np.sum(u[n], axis=0) / N
+    Gu_centrato = Gu - np.sum(Gu, axis=0) / N
+    CuG = (u_centrato.T @ Gu_centrato) / N
+    CGG = (Gu_centrato.T @ Gu_centrato) / N
+
+    K_gain = CuG @ np.linalg.inv(CGG + IGamma)
+    u[n + 1] = u[n] + (K_gain @ (y - Gu).T).T
+
+    return u, TETA, res, 10
 
 
 def EKI(u0, U, y, G, eta, Ntmax, IGamma, s_stadi=0, Nlam=15):
@@ -10,399 +47,38 @@ def EKI(u0, U, y, G, eta, Ntmax, IGamma, s_stadi=0, Nlam=15):
     TETA = np.zeros(Ntmax)  # Vettore dei Misfit
     res = np.zeros(Ntmax)  # Vettore dei residui
     for n in range(Ntmax):
-        # print(n, '/', Ntmax)
         Gu = G(u[n])
-        if __name__ == "__main__":
-            r = u[n] - U  # Residuo
-            rr = np.mean(lib.norm(r, axis=1) ** 2)
-            print("    residuo =", rr)
-            res[n] = rr
-        # teta_vett = (G(r) - eta)
-        teta_vett = Gu - y
-        teta = np.mean(lib.norm(teta_vett, axis=1) ** 2)
-        TETA[n] = teta
-        if teta < lib.norm(eta) ** 2:
+        u, TETA, res, converge = EKI_n(u, y, Gu, eta, IGamma, N, n, TETA, res)
+        # u, TETA, res, converge = lib.my_pstats_profiler(EKI_n,u, y, Gu, eta, IGamma, N, n, TETA, res)
+        if converge == 0:
             # print("\tEKI-Converge in ", n, "iterazioni")
-            return u[: n + 1], TETA[: n + 1], res[: n + 1]
-        elif np.abs(TETA[n] - TETA[n - 1]) < 1e-9:
-            # print("\tEKI-Residuo in  ", n, "iterazioni")
-            return u[: n + 1], TETA[: n + 1], res[: n + 1]
-        # print('    misfit =', teta, '\n    norm(rumore) =', norm(eta) ** 2)
-        # Creo le matrici di covarianza
-        u_centrato = u[n] - np.mean(u[n], axis=0)
-        Gu_centrato = Gu - np.mean(Gu, axis=0)
-        CuG = (u_centrato.T @ Gu_centrato) / (N)
-        CGG = (Gu_centrato.T @ Gu_centrato) / (N)
-
-        # Aggiorno u
-        # u[n+1] = u[n] + np.tile(CuG @ np.linalg.inv(CGG + IGamma), (N,1,1)) @ (np.tile(y, (N,1,1)) - np.tile(G, (N,1,1)) @ u[n].T).T
-        L, l = lib.cho_factor(CGG + IGamma)
-        K_gain = CuG @ lib.cho_solve((L, l), np.eye(len(L)))
-        u[n + 1] = u[n] + (K_gain @ (y - Gu).T).T
-        # u[n + 1] = u[n] + (CuG @ np.linalg.inv(CGG + IGamma) @ (y - Gu).T).T
-
-    # print(f"EKI-Non converge in {Ntmax} iterazioni. Misfit = {teta}, norm(eta)2 = {norm(eta) ** 2}")
-    if n == Ntmax - 1:
+            return u, TETA, res
+        elif converge == 1:
+            # print("\tEKI-Residuo in ", n, "iterazioni")
+            return u, TETA, res
+        elif converge == 2:
+            # print("\tEKI-Plus in ", n, "iterazioni")
+            return u, TETA, res
+        elif converge == 3:
+            # print("\tEKI-ResPlus in ", n, "iterazioni")
+            return u, TETA, res
+    if converge == 10:
         print(
-            f"\tEKI-Non converge in {Ntmax} iterazioni. Misfit - norm(eta)2 = {teta - lib.norm(eta) ** 2 :.6f}. Misfit / norm(eta)2 = {teta / lib.norm(eta) ** 2 :.6f}"
+            "\tEKI-Non converge in ",
+            n,
+            "iterazioni. Diff = ",
+            TETA[n] - np.sum(eta**2),
+            "Rapp = ",
+            TETA[n] / np.sum(eta**2),
         )
+
     return u, TETA, res
 
 
-def EKI_Coupled(u0, U, y, G, eta, Ntmax, IGamma, s_stadi=0, Nlam=15):
-    # g = lambda u: np.array(list(map(g, u))) # Applico g a ogni controllo
-    LAM = coefficienti_coupled_direct_approach(s_stadi, Nlam)
-    N, s, d = np.shape(u0)
-    u = np.zeros((Nlam, N, s, d))
-    u[:] = u0
-    TETA = np.zeros(Ntmax)  # Vettore dei Misfit
-    res = np.zeros(Ntmax)  # Vettore dei residui
-    for nl in range(Nlam):
-        print(f"nl = {nl+1}/{Nlam}")
-        lam = LAM[nl]
-        # y = lam @ y # == y perche y è uguale per ogni stadio
-        for n in range(Ntmax):
-            # print(n, '/', Ntmax)
-            # Gu = g(u[n]) # Applico g a u
-            Gu = G(u[nl], lam)
-            if __name__ == "__main__":
-                r = u[n] - U  # Residuo
-                rr = np.mean(lib.norm(r, axis=1) ** 2)
-                print("    residuo =", rr)
-                res[n] = rr
-            # teta_vett = (G(r) - eta)
-            teta_vett = Gu - y
-            teta = np.mean(lib.norm(teta_vett, axis=1) ** 2)
-            TETA[n] = teta
-            if teta < lib.norm(eta) ** 2:
-                print("EKI-Converge in ", n, "iterazioni")
-                # return u[: n + 2], TETA[: n + 1], res[: n + 1]
-                break
-            # print('    misfit =', teta, '\n    norm(rumore) =', norm(eta) ** 2)
-            # Creo le matrici di covarianza
-            # co = np.zeros((s, 2*d, 2*d))
-            # for i in range(s):
-            #     co[i] = np.cov(u[nl, :, i].T, Gu.T, bias = True)
-            # CuG = co[:, :d, d:]
-            # CGG = np.cov(Gu.T, bias=True)
-
-            u_flat = lib.einops.rearrange(u[nl], "n s d -> n (s d)")
-            co = np.cov(u_flat.T, Gu.T, bias=True)
-            CuG = co[: s * d, s * d :]
-            # CuG = co[:s * d, s * d:].reshape((d, s, d))
-            CGG = co[s * d :, s * d :]
-
-            # u_centrato = u_n_lam - np.mean(u_n_lam, axis=0)
-            # Gu_centrato = Gu - np.mean(Gu, axis=0)
-            # CuG = (u_centrato.T @ Gu_centrato) / (N)
-            # CGG = (Gu_centrato.T @ Gu_centrato) / (N)
-
-            # Aggiorno u
-            # u[n+1] = u[n] + np.tile(CuG @ np.linalg.inv(CGG + IGamma), (N,1,1)) @ (np.tile(y, (N,1,1)) - np.tile(G, (N,1,1)) @ u[n].T).T
-            L, l = lib.cho_factor(CGG + IGamma)
-            K_gain = CuG @ lib.cho_solve((L, l), np.eye(len(L)))
-            # u[nl] += (K_gain @ (y - Gu).T).transpose(2, 0, 1)
-            u[nl] += lib.einops.rearrange(
-                (K_gain @ (y - Gu).T), "(s d) n -> n s d", s=s, d=d
-            )
-            # u[n + 1] = u[n] + (CuG @ np.linalg.inv(CGG + IGamma) @ (y - Gu).T).T
-
-        # print(f"EKI-Non converge in {Ntmax} iterazioni. Misfit = {teta}, norm(eta)2 = {norm(eta) ** 2}")
-        if n == Ntmax - 1:
-            print(
-                f"EKI-Non converge in {Ntmax} iterazioni. Misfit - norm(eta)2 = {teta - lib.norm(eta) ** 2 :.6f}. Misfit / norm(eta)2 = {teta / lib.norm(eta) ** 2 :.6f}"
-            )
-    u_mean_lam = np.mean(u, axis=0)
-    return u_mean_lam, TETA, res
-
-
-def coefficienti_coupled_direct_approach(s, Nlam):
-    lam = np.random.uniform(0, 1, (Nlam, s))
-    lam /= np.sum(lam, axis=1)[:, np.newaxis]
-    return lam
-
-
-"""Esempi di G"""
-
-
-def G(u, d, K, dx, dy, Gg, calc):  # G lineare
-    N = len(u)
-    if Gg == 0:
-        # Discretizzazione di (-d^2/dx^2 + 1)^-1
-        A = 1 / (dx * dy) * (
-            2 * np.eye(K) - np.diag(np.ones(K - 1), 1) - np.diag(np.ones(K - 1), -1)
-        ) + np.eye(K)
-        g = np.linalg.inv(A)
-        if calc:
-            gC0 = np.linalg.inv(A - np.eye(d))
-            return gC0
-        if len(np.shape(u)) == 1:  # u è un vettore d. Serve per calcolare y e teta
-            return g @ u
-        else:  # u è una matrice N x d
-            g = lib.block_diag([g] * N)
-            p = g @ u.flatten()
-            return p.reshape((N, K))
-    elif Gg == 1:
-        # Discretizzazione di (d^2/dx^2)^-1
-        A = (
-            1
-            / (dx * dy)
-            * (
-                -2 * np.diag(np.ones(K))
-                + np.diag(np.ones(K - 1), 1)
-                + np.diag(np.ones(K - 1), -1)
-            )
-        )
-        g = np.linalg.inv(A)
-        if calc:
-            gC0 = np.linalg.inv(A - np.eye(d))
-            return gC0
-        if len(np.shape(u)) == 1:  # u è un vettore d. Serve per calcolare y e teta
-            return g @ u
-        else:  # u è una matrice N x d
-            g = lib.block_diag([g] * N)
-            p = g @ u.flatten()
-            return p.reshape((N, K))
-    elif Gg == 2:
-        # Discretizzazione di (d/dx + 1)^-1
-        A = 1 / (2 * dx) * (np.eye(K) - np.diag(np.ones(K - 1), -1)) + np.eye(K)
-        g = np.linalg.inv(A)
-        if calc:
-            gC0 = np.linalg.inv(A - np.eye(d))
-            return gC0
-        if len(np.shape(u)) == 1:  # u è un vettore d. Serve per calcolare y e teta
-            return g @ u
-        else:  # u è una matrice N x d
-            g = lib.block_diag([g] * N)
-            p = g @ u.flatten()
-            return p.reshape((N, K))
-    elif Gg == 3:  # G generale
-        # Discretizzazione di -(exp(u) p')' = 1
-        if calc:  # Calcolo gC0
-            A = (
-                np.exp(u)
-                / dx**2
-                * (
-                    -np.diag(u[:-1], -1)
-                    + np.diag(u + np.append(u[1:], 2 * u[-1] - u[-2]))
-                    + np.diag(-u[1:], 1)
-                )
-            )
-            gC0 = np.linalg.inv(A - np.eye(d))
-            return gC0
-        # se calc == False
-        if len(np.shape(u)) == 1:  # u è un vettore d. Serve per calcolare y e teta
-            A = (
-                np.exp(u)
-                / dx**2
-                * (
-                    -np.diag(u[:-1], -1)
-                    + np.diag(u + np.append(u[1:], 2 * u[-1] - u[-2]))
-                    + np.diag(-u[1:], 1)
-                )
-            )
-            b = np.ones(K)
-            p = np.linalg.solve(A, b)
-            return p
-        else:  # u è una matrice N x d
-            # ud = np.hstack((u[:, :-1], np.zeros((N, 1)))); ud = ud.flatten() # u[i-1] sottodiagonale
-            # uu = np.hstack((np.zeros((N, 1)), u[:, 1:])); uu = uu.flatten() # u[i+1] sopradiagonale
-            uc = u.flatten()  # u[i] diagonale
-            ud = u.flatten()
-            ud[d - 1 :: d] = 0  # u[i-1] sottodiagonale
-            uu = u.flatten()
-            uu[0::d] = 0  # u[i+1] sopradiagonale
-            diagonals = [
-                -ud[:-1] * np.exp(ud[:-1]) / dx**2,  # subdiagonal
-                (uc + np.hstack((u[:, 1:], 2 * u[:, -1:] - u[:, -2:-1])).flatten())
-                * np.exp(uc)
-                / dx**2,  # main diagonal
-                -uu[1:] * np.exp(uu[1:]) / dx**2,  # superdiagonal
-            ]
-            A = lib.diags(diagonals, offsets=[-1, 0, 1], shape=(N * K, N * K))
-            b = np.ones(N * K)
-            p = lib.spsolve(A, b)
-            return p.reshape((N, K))
-    elif Gg == 4:
-        # Discretizzazione di -p'' + up' = u
-        if calc:
-            A = (
-                1
-                / dx**2
-                * (
-                    2 * np.eye(K)
-                    - np.diag(np.ones(K - 1), 1)
-                    - np.diag(np.ones(K - 1), -1)
-                )
-            )
-            A += 1 / dx * (-np.diag(u) + np.diag((u[:-1]), 1))
-            gC0 = np.linalg.inv(A - np.eye(d))
-            return gC0
-        if len(np.shape(u)) == 1:  # u è un vettore d. Serve per calcolare y=g(u)+eta
-            A = (
-                1
-                / dx**2
-                * (
-                    2 * np.eye(K)
-                    - np.diag(np.ones(K - 1), 1)
-                    - np.diag(np.ones(K - 1), -1)
-                )
-            )
-            A += 1 / dx * (-np.diag(u) + np.diag((u[:-1]), 1))
-            b = u
-            p = np.linalg.solve(A, b)
-            return p
-        else:
-            uc = u.flatten()  # u[i] diagonale
-            ud = u.flatten()
-            ud[d - 1 :: d] = 0  # u[i-1] sottodiagonale
-            uu = u.flatten()
-            uu[0::d] = 0  # u[i+1] sopradiagonale
-            uno = np.ones(N * K)
-            uno[0::d] = 0
-            diagonals = [
-                1 / dx**2 * (-uno[1:]),  # subdiagonal
-                1 / dx**2 * (2) + 1 / dx * (-uc),  # main diagonal
-                1 / dx**2 * (-uno[1:]) + 1 / dx * (uu[:-1]),  # superdiagonal
-            ]
-            A = lib.diags(diagonals, offsets=[-1, 0, 1], shape=(N * K, N * K))
-            b = uc
-            p = lib.spsolve(A, b)
-            return p.reshape((N, K))
-    elif Gg == 5:
-        # Discretizzazione di d2/dx2(pu) + d/Dx(p log(|u|)) + p = 1
-        if calc:
-            A = (
-                1
-                / dx**2
-                * (
-                    np.diag(u[:-1], -1)
-                    - 2 * np.diag(u + np.append(u[1:], 2 * u[-1] - u[-2]))
-                    + np.diag(2 * u[1:] - u[:-1], 1)
-                )
-            )
-            A += (
-                1
-                / dx
-                * (
-                    -np.diag(np.log(np.abs(u + 1e-8)))
-                    + np.diag(np.log(np.abs(u[:-1] + 1e-8)), 1)
-                )
-            )
-            A += np.diag(1 / np.abs(u + 1e-8) + 1)
-            gC0 = np.linalg.inv(A - np.eye(d))
-            return gC0
-        # se calc == False
-        if len(np.shape(u)) == 1:  # u è un vettore d. Serve per calcolare y=g(u)+eta
-            A = (
-                1
-                / dx**2
-                * (
-                    np.diag(u[1:], -1)
-                    - 2 * np.diag(u + np.append(u[1:], 2 * u[-1] - u[-2]))
-                    + np.diag(2 * u[1:] - u[:-1], 1)
-                )
-            )
-            A += (
-                1
-                / dx
-                * (
-                    -np.diag(np.log(np.abs(u + 1e-8)))
-                    + np.diag(np.log(np.abs(u[:-1] + 1e-8)), 1)
-                )
-            )
-            A += np.diag(1 / np.abs(u + 1e-8) + 1)
-            b = np.ones(K)
-            p = np.linalg.solve(A, b)
-            return p
-        else:  # u è una matrice N x d
-            uc = u.flatten()  # u[i] diagonale
-            ud = u.flatten()
-            ud[d - 1 :: d] = 0  # u[i-1] sottodiagonale
-            uu = u.flatten()
-            uu[0::d] = 0  # u[i+1] sopradiagonale
-            diagonals = [
-                1 / dx**2 * (ud[1:]),  # subdiagonal
-                1
-                / dx**2
-                * (
-                    -2
-                    * (
-                        uc
-                        + np.hstack((u[:, 1:], 2 * u[:, -1:] - u[:, -2:-1])).flatten()
-                    )
-                )
-                + 1 / dx * (-np.log(np.abs(uc + 1e-8)))
-                + (1 / np.abs(uc + 1e-8) + 1),  # main diagonal
-                1 / dx**2 * (2 * uu[1:] - uc[:-1])
-                + 1 / dx * (np.log(np.abs(uc[:-1] + 1e-8))),  # superdiagonal
-            ]
-            A = lib.diags(diagonals, offsets=[-1, 0, 1], shape=(N * K, N * K))
-            b = np.ones(N * K)
-            p = lib.spsolve(A, b)
-            return p.reshape((N, K))
-    elif Gg == 6:
-        # Discretizzazione di -(exp(u_1) p')' = 1, DIM == 2
-        if calc:  # Calcolo gC0
-            u1 = u[0]
-            u2 = u[1]
-            A = np.exp(u1) / dx**2 * (-np.eye(K, k=-1) + 2 * np.eye(K) - np.eye(K, k=1))
-            gC0 = np.linalg.inv(A - np.eye(K))
-            return gC0
-        # se calc == False
-        if len(np.shape(u)) == 1:  # u è un vettore d. Serve per calcolare y e teta
-            u1 = u[0]
-            u2 = u[1]
-            A = np.exp(u1) / dx**2 * (-np.eye(K, k=-1) + 2 * np.eye(K) - np.eye(K, k=1))
-            b = np.ones(K)
-            # Condizioni al bordo
-            A[0, 0] = 1
-            A[-1, -1] = 1
-            b[0] = 0
-            b[-1] = u2
-            p = np.linalg.solve(A, b)
-            return p
-        else:  # u è una matrice N x d
-            u1 = u[:, 0]
-            u2 = u[:, 1]
-            uc1 = lib.einops.repeat(u1, "n -> (n rep)", rep=K)  # u[i] diagonale
-            ud1 = lib.einops.repeat(u1, "n -> (n rep)", rep=K)
-            ud1[K - 1 :: K] = 0  # u[i-1] sottodiagonale
-            uu1 = lib.einops.repeat(u1, "n -> (n rep)", rep=K)
-            uu1[K - 1 :: K] = 0  # u[i+1] sopradiagonale
-            diagonals = [
-                (-np.exp(ud1) / dx**2),  # subdiagonal
-                (2 * np.exp(uc1) / dx**2),  # main diagonal
-                (-np.exp(uu1) / dx**2),  # superdiagonal
-            ]
-            A = lib.diags(diagonals, offsets=[-1, 0, 1], shape=(N * K, N * K))
-            b = np.ones(N * K)
-            # Condizioni al bordo
-            A.data[1, 0::K] = 1
-            A.data[1, K - 1 :: K] = 1
-            b[0::K] = 0
-            b[K - 1 :: K] = u2
-            p = lib.spsolve(A, b)
-            return p.reshape((N, K))
-    elif Gg == 7:
-        # Discretizzazione di scrG1(u) = (u - 1)^2 e scrG2(u) = (u + 1)^2
-        if calc:
-            return np.zeros((d, d))
-        if len(np.shape(u)) == 1:  # u è un vettore d. Serve per calcolare y e teta
-            G1 = (u - 1) ** 2
-            G2 = (u + 1) ** 2
-            return np.vstack((G1, G2)).T
-        else:  # u è una matrice N x d
-            G1 = (u - 1) ** 2
-            G2 = (u + 1) ** 2
-            return np.stack((G1, G2), axis=-1)
-
-
-"""Fine esempi di G"""
-
-
 # Grafico
-def grafico(x, y, u0, uM, U, GU, GuM, teta, res, SALVA=False, savepath="\Desktop\\"):
+def grafico(
+    x, y, u0, uM, U, GU, GuM, teta, eta, N, res, SALVA=False, savepath="\Desktop\\"
+):
     lib.plt.figure(1)
     lib.plt.title("Dati")
     lib.plt.plot(x, y, "x--y", label="osservazioni")
@@ -426,7 +102,7 @@ def grafico(x, y, u0, uM, U, GU, GuM, teta, res, SALVA=False, savepath="\Desktop
     lib.plt.figure(3)
     lib.plt.title("Misfit")
     lib.plt.semilogy(teta, "x--", label="Misfit")
-    lib.plt.semilogy(np.ones(len(teta)) * lib.norm(eta) ** 2, label="norm(eta)2")
+    lib.plt.semilogy(np.ones(len(teta)) * np.sum(eta**2), label="norm(eta)2")
     lib.plt.grid(True, axis="y", which="major", linestyle="--", linewidth=0.5)
     lib.plt.xlabel("Iterazioni")
     lib.plt.legend()
@@ -454,7 +130,7 @@ def grafico(x, y, u0, uM, U, GU, GuM, teta, res, SALVA=False, savepath="\Desktop
 
 
 def grafico2D(
-    x, y, u0, uM, u, U, GU, GuM, teta, res, SALVA=False, savepath="\Desktop\\"
+    x, y, u0, uM, u, U, GU, GuM, teta, eta, res, SALVA=False, savepath="\Desktop\\"
 ):
     lib.plt.figure(1)
     lib.plt.title("Dati")
@@ -481,7 +157,7 @@ def grafico2D(
     lib.plt.figure(3)
     lib.plt.title("Misfit")
     lib.plt.semilogy(teta, "x--", label="Misfit")
-    lib.plt.semilogy(np.ones(len(teta)) * lib.norm(eta) ** 2, label="norm(eta)2")
+    lib.plt.semilogy(np.ones(len(teta)) * np.sum(eta**2), label="norm(eta)2")
     lib.plt.grid(True, axis="y", which="major", linestyle="--", linewidth=0.5)
     lib.plt.xlabel("Iterazioni")
     lib.plt.legend()
@@ -519,67 +195,4 @@ def grafico2D(
 
 
 if __name__ == "__main__":
-    print("Dati iniziali")
-    Ntmax = 100
-    gamma = 1e-2
-    Gg = 0  # Modello G da usare (0-1-2 lineari, 3-4-5 non lineari, 6 2D)
-    if Gg in [0, 1, 2, 3, 4, 5, 7]:
-        d = K = 256
-    elif Gg in [6]:
-        d, K = 2, 256
-    Dx = [0, np.pi]  # Dominio spaziale
-    dx = (Dx[1] - Dx[0]) / K  # Passo spaziale
-    # dy = (Dx[1] - Dx[0]) / d #???
-
-    N = 20  # Realizzazione del controllo, numero di ensemble
-    Uu = lambda x: np.ones(len(x))  # Controllo esatto. U_croce
-    # Uu = lambda x: np.sin(8 * x) # Controllo esatto. U_croce
-    # Uu = lambda x: np.abs(x) # Controllo esatto. U_croce
-    # Uu = lambda x: x**3
-    # Uu = lambda x: np.exp(-80 * (x - np.pi / 2) ** 2)
-    savepath = "Desktop\\"
-    # SALVA = True
-    SALVA = False
-
-    x = np.linspace(Dx[0], Dx[1], K)
-    y = np.linspace(Dx[0], Dx[1], d)
-    if Gg in [0, 1, 2, 3, 4, 5]:
-        U = Uu(y)
-    elif Gg in [6]:
-        U = np.array([-2.65, 104.5])
-    elif Gg in [7]:
-        U = np.array([0, 0])  # INUTILE
-    g = lambda u, calc=False: G(u, d, K, dx, dx, Gg, calc)  # calc==True calcola cG0
-    gC0 = g(U, True)
-
-    # Controlli iniziali
-    t = np.linspace(0, 1, d)
-    if Gg in [0, 1, 2, 3, 4, 5]:
-        # browniano prof
-        # try: u0 = np.mean(U)*np.ones((N, d)) + np.random.randn(N, d) @ np.linalg.cholesky(10*gC0)
-        # except: u0 = np.mean(U)*np.ones((N, d)) + np.random.randn(N, d) @ np.linalg.cholesky(10*(gC0@gC0.T))
-        # casuale prof
-        u0 = np.array([U + 0.25 + np.random.randn() for _ in range(N)])
-        # casuale
-        # u0 = np.array([U + 10*np.random.normal(0, gamma, d) for _ in range(N)])
-    elif Gg == 6:
-        u0 = np.zeros((N, d))
-        u0[:, 0] = np.random.randn(N)
-        u0[:, 1] = np.random.uniform(90, 110, N)
-    elif Gg == 7:
-        u0 = lib.random.uniform(-1, 1, (N, d))
-
-    IGamma = gamma**2 * np.eye(K)  # Matrice di Covarianza del rumore eta
-    eta = np.random.normal(0, gamma, K)  # Rumore se IGamma è diagonale
-
-    GU = g(U)  # G(Controllo esatto)
-    y = GU + eta  # Dati osservati
-    u, teta, res = EKI_Coupled(u0, U, y, G, eta, Ntmax, IGamma, 2, Nlam=15)
-    um = np.mean(u[-1], axis=0)  # Media di u finale
-    print("Fine calcolo")
-    GuM = g(um)  # G(Controllo ricostruito)
-    if Gg in [0, 1, 2, 3, 4, 5]:
-        grafico(x, y, u0, um, U, GU, GuM, teta, res, SALVA, savepath)
-    elif Gg in [6]:
-        grafico2D(x, y, u0, um, u[-1], U, GU, GuM, teta, res, SALVA, savepath)
-    print("Fine grafico")
+    lib.dati.comincia()
