@@ -5,9 +5,9 @@ import numpy as np
 def datiEKI(f, y_prev, t_prev, dt, A, b, c):
     s = len(A)  # Numero di stadi
     d = len(y_prev)  # Dimensione del sistema
-    N = 10  # Numero di ensemble
+    N = 15  # Numero di ensemble
     Nlam = 3  # Numero di coeffienti di EKI_Coupled_direct
-    Ntmax = 100  # Numero massimo di iterazioni
+    Ntmax = 200  # Numero massimo di iterazioni
     # gamma = 1e-4 * dt**s
     gamma = dt**s
     # gamma = 1e-12 * dt**s # No per case==10
@@ -33,8 +33,8 @@ def datiEKI(f, y_prev, t_prev, dt, A, b, c):
 
 
 def datiRK():
-    case = 10  # Caso f da risolvere
-    y0 = np.array([1, 0, 0])  # Dati iniziali al tempo 0 e Dimensione del sistema
+    case = 9  # Caso f da risolvere
+    y0 = np.array([0.1, 0.2])  # Dati iniziali al tempo 0 e Dimensione del sistema
     t0, T = 0, 30  # Tempo
     lam, Jf, coefficienti_m = lib.autovalori(case)
     # Vettore dei passi temporali degli autovalori. Se l'autovalore==0, fa 1 iterazione
