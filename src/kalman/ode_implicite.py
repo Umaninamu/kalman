@@ -51,14 +51,28 @@ def RungeKuttaNewton(f, y_prev, t_prev, dt, A, b, c, Jf):
             - dt * sum(A[i, k] * f(Y[k], t_prev + c[k] * dt) for k in range(i + 1))
         )
 
+    def Jacobiano(Y, i, F):
+        # Calcolo lo jacobiano Jf di f con le differenze finite
+        d = len(Y[i])
+        Jf = np.zeros((d, d))
+        h = np.eye(d) * 1e-8
+        for p in range(d):
+            Jf[:, p] = (F(Y + h[p], i) - F(Y - h[p], i)) / (2 * h[p][p])
+        J = np.eye(d) - dt * A[i, i] * Jf  # Jacobiano di F
+        return J
+
     for i in range(s):
 
         def newton(F, Y, tol=1e-10, max_iter=200):
             for iter in range(max_iter):
+                # Calcolo lo jacobiano Jf di f con le differenze finite
+                # J = Jacobiano(Y, i, F)
+                # Calcolo lo jacobiano Jf di f a mano
                 J = np.eye(len(Y[i])) - dt * A[i, i] * Jf(Y[i])  # Jacobiano di F
                 dy = np.linalg.solve(J, -F(Y, i))
                 Y[i] += dy
                 if np.linalg.norm(dy) < tol:
+                    # print("Newton converge in ", iter, "iterazioni")
                     break
                 elif iter == max_iter - 1:
                     print("Newton-Non converge in ", i, "iterazioni")

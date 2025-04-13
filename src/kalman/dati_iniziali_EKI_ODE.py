@@ -33,8 +33,8 @@ def datiEKI(f, y_prev, t_prev, dt, A, b, c):
 
 
 def datiRK():
-    case = 9  # Caso f da risolvere
-    y0 = np.array([0.1, 0.2])  # Dati iniziali al tempo 0 e Dimensione del sistema
+    case = 10  # Caso f da risolvere
+    y0 = np.array([1, 0, 0])  # Dati iniziali al tempo 0 e Dimensione del sistema
     t0, T = 0, 30  # Tempo
     lam, Jf, coefficienti_m = lib.autovalori(case)
     # Vettore dei passi temporali degli autovalori. Se l'autovalore==0, fa 1 iterazione
