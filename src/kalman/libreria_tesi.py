@@ -222,10 +222,12 @@ def controllo_iniziale(y, d, K, N, dt, A, b, c, f, t, contr=2):
         y_next += DT * np.dot(tab[1], k)
         u0 = np.random.normal(loc=y_next, scale=dt, size=(d, N, K))
     elif contr == 6:
-        """ """
-        u0 = np.random.normal(loc=y_next, scale=dt, size=(d, N, K))
+        """
+        6) Controlli iniziali deterministici uniformi
+        """
+        u0 = np.random.uniform(low=y - 0.5, high=y + 0.5, size=(N, d, K))
     elif contr == 7:
-        u0 = np.random.normal(loc=y, scale=c * dt, size=(N, d, K))
+        u0 = np.random.normal(loc=y, scale=c * dt, size=(N, K))
 
     return u0
 

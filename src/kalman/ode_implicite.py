@@ -4,24 +4,13 @@ import time
 
 
 def RungeKuttaEKI(f, y_prev, t_prev, dt, A, b, c, y_N):
-    u0, U, y, G, ETA, Ntmax, IGamma, s, d, N, Nlam = lib.dati.datiEKI(
+    y, ETA, Ntmax, IGamma, s, d, N, alpha, beta = lib.dati.datiEKI(
         f, y_prev, t_prev, dt, A, b, c
     )
-
-    # COUPLED ##############################################################################
-    # u = lib.eki.EKI_Coupled(u0, U, y, G, ETA, Ntmax, IGamma, s, Nlam)[0]  # u==u_tempo_finale, return [Y, teta, res]
-    # um = np.mean(u, axis=0)
-    ##um = lib.einops.rearrange(um, "(s d) -> s d", d=d, s=s)
-    # PER STADI ############################################################################
     um = np.zeros((s, d))
-    u_i = u0[:, 0]  # Partenza dal passo precedente
-    # y_i = y
-    # print("")
     for i in range(s):
         # Partenza da NEWTON
-        u0 = lib.controllo_iniziale(y_N[i], s, d, N, dt, A, b, c[i], f, t_prev, 7)
-
-        u_i = u0[:, i]
+        u_i = lib.controllo_iniziale(y_N[i], s, d, N, dt, A, b, c[i], f, t_prev, 7)
         y_i = y + dt * sum(A[i, k] * f(um[k], t_prev + c[k] * dt) for k in range(i))
 
         def G(u):
@@ -30,7 +19,7 @@ def RungeKuttaEKI(f, y_prev, t_prev, dt, A, b, c, y_N):
             )  # G(u)=u-dt*sum(A[i,k]*f(Y[k],t+c[k]*dt))
             return Gu
 
-        u_i = lib.eki.EKI(u0[:, i], U, y_i, G, ETA, Ntmax, IGamma)[0][-1]
+        u_i = lib.eki.EKI(u_i, y_i, G, ETA, Ntmax, IGamma, alpha, beta)[0][-1]
         um[i] = np.mean(u_i, axis=0)
     #######################################################################################
 
@@ -61,6 +50,7 @@ def RungeKuttaNewton(f, y_prev, t_prev, dt, A, b, c, Jf):
         J = np.eye(d) - dt * A[i, i] * Jf  # Jacobiano di F
         return J
 
+    bFY = 0  # bFY = sum(b[i]*f(Y[i],t_prev+c[i]*dt))
     for i in range(s):
 
         def newton(F, Y, tol=1e-10, max_iter=200):
@@ -75,12 +65,15 @@ def RungeKuttaNewton(f, y_prev, t_prev, dt, A, b, c, Jf):
                     # print("Newton converge in ", iter, "iterazioni")
                     break
                 elif iter == max_iter - 1:
-                    print("Newton-Non converge in ", i, "iterazioni")
+                    print("Newton-Non converge allo stadio ", i)
                     # raise ValueError("Newton non converge")
             return Y[i]
 
         Y[i] = newton(F, Y)
-    y_next = y_prev + dt * sum(b[i] * f(Y[i], t_prev + c[i] * dt) for i in range(s))
+        bFY += b[i] * f(
+            Y[i], t_prev + c[i] * dt
+        )  # bFY = sum(b[i]*f(Y[i],t_prev+c[i]*dt))
+    y_next = y_prev + dt * bFY
     return y_next, Y
 
 
@@ -92,7 +85,6 @@ def ode(f, y0, t0, T, dt, A, b, c, Jf):
 
     t_Newton = t_EKI = 0
     for n in range(1, len(t)):
-        # print(f"{n}/{len(t)}")
         if len(t) < 100 or n % (len(t) // 100) == 0:
             print(f"{n / len(t) * 100:.2f}%")
         t1 = time.time()

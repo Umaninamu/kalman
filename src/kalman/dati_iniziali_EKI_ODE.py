@@ -6,35 +6,21 @@ def datiEKI(f, y_prev, t_prev, dt, A, b, c):
     s = len(A)  # Numero di stadi
     d = len(y_prev)  # Dimensione del sistema
     N = 15  # Numero di ensemble
-    Nlam = 3  # Numero di coeffienti di EKI_Coupled_direct
     Ntmax = 200  # Numero massimo di iterazioni
     # gamma = 1e-4 * dt**s
     gamma = dt**s
     # gamma = 1e-12 * dt**s # No per case==10
 
-    def G(u, lam):
-        # u = lib.einops.rearrange(Y, "n (s d) -> n s d", d=d, s=s)
-
-        G_s = u - dt * A @ f(
-            u, t_prev + c * dt
-        )  # G(u)=u-dt*sum(A[i,k]*f(Y[k],t+c[k]*dt))
-        Gu = lam @ G_s  # Gu=sum(lam_s*G_s)
-        # Gu = lib.einops.rearrange(Gu, "n s d -> n (s d)")
-        return Gu
-
-    u0 = lib.controllo_iniziale(y_prev, s, d, N, dt, A, b, c, f, t_prev, 2)
-    # u0 = lib.einops.rearrange(u0, "s n d -> n (s d)")
+    alpha, beta = 0.7, -1  # Parametri di EKI accelerato
     eta = np.random.normal(0, gamma, d)  # Rumore se IGamma è diagonale
-    # ETA = lib.einops.repeat(eta, "d -> (rep d)", rep=s)
     IGamma = gamma**2 * np.eye(d)  # Matrice di covarianza del rumore
     y = y_prev + eta  # Dati osservati y=G(Y)+eta
-    U = np.zeros(s)  # INUTILE
-    return u0, U, y, G, eta, Ntmax, IGamma, s, d, N, Nlam
+    return y, eta, Ntmax, IGamma, s, d, N, alpha, beta
 
 
 def datiRK():
-    case = 10  # Caso f da risolvere
-    y0 = np.array([1, 0, 0])  # Dati iniziali al tempo 0 e Dimensione del sistema
+    case = 9  # Caso f da risolvere
+    y0 = np.array([1, 2])  # Dati iniziali al tempo 0 e Dimensione del sistema
     t0, T = 0, 30  # Tempo
     lam, Jf, coefficienti_m = lib.autovalori(case)
     # Vettore dei passi temporali degli autovalori. Se l'autovalore==0, fa 1 iterazione
